@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Abriendo La Orden...</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #2C3E50 0%, #1a252f 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+        }
+        .container {
+            text-align: center;
+            padding: 40px 20px;
+            max-width: 400px;
+        }
+        .logo {
+            font-size: 64px;
+            margin-bottom: 20px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #B76E79;
+        }
+        p {
+            font-size: 16px;
+            color: #95A5A6;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #95A5A6;
+            border-top-color: #B76E79;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .fallback {
+            display: none;
+            margin-top: 30px;
+        }
+        .fallback.show {
+            display: block;
+        }
+        .store-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+            margin-top: 20px;
+        }
+        .store-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #B76E79;
+            color: white;
+            text-decoration: none;
+            padding: 15px 30px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            width: 100%;
+            max-width: 250px;
+            transition: transform 0.2s, background 0.2s;
+        }
+        .store-btn:hover {
+            background: #a05d67;
+            transform: scale(1.02);
+        }
+        .store-btn.android {
+            background: #3DDC84;
+        }
+        .open-btn {
+            background: #B76E79;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 15px;
+        }
+        .session-info {
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .session-info p {
+            margin: 0;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">🎲</div>
+        <h1>Abriendo La Orden...</h1>
+        <div class="spinner" id="spinner"></div>
+        <p id="status">Redirigiendo a la app...</p>
+
+        <div class="fallback" id="fallback">
+            <div class="session-info">
+                <p>Te han invitado a una sesion de rol</p>
+            </div>
+            <p>Si la app no se abrio automaticamente:</p>
+            <button class="open-btn" onclick="openApp()">Abrir La Orden</button>
+            <div class="store-buttons">
+                <a href="https://apps.apple.com/app/la-orden" class="store-btn">
+                     Descargar en App Store
+                </a>
+                <a href="https://play.google.com/store/apps/details?id=com.ordermobile.app" class="store-btn android">
+                     Descargar en Google Play
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Parse the URL path to get the deep link parameters
+        const path = window.location.pathname;
+        const APP_SCHEME = 'ordermobile://';
+
+        // Extract session ID from path like /session/abc-123
+        function getDeepLinkUrl() {
+            // Remove leading slash and any trailing slashes
+            const cleanPath = path.replace(/^\//, '').replace(/\/$/, '');
+
+            // Handle different path patterns
+            if (cleanPath.startsWith('session/')) {
+                const sessionId = cleanPath.replace('session/', '');
+                return APP_SCHEME + 'session/' + sessionId;
+            }
+            if (cleanPath.startsWith('campaign/')) {
+                const campaignId = cleanPath.replace('campaign/', '');
+                return APP_SCHEME + 'campaign/' + campaignId;
+            }
+
+            // Default: redirect to home
+            return APP_SCHEME;
+        }
+
+        const deepLinkUrl = getDeepLinkUrl();
+
+        function openApp() {
+            window.location.href = deepLinkUrl;
+        }
+
+        function showFallback() {
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('status').textContent = 'No pudimos abrir la app automaticamente';
+            document.getElementById('fallback').classList.add('show');
+        }
+
+        // Try to open the app immediately
+        function tryOpenApp() {
+            // Create a hidden iframe to try opening the app
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = deepLinkUrl;
+            document.body.appendChild(iframe);
+
+            // Also try direct navigation
+            setTimeout(() => {
+                window.location.href = deepLinkUrl;
+            }, 100);
+
+            // Show fallback after a delay if the app didn't open
+            setTimeout(showFallback, 2500);
+        }
+
+        // Start the redirect process
+        tryOpenApp();
+    </script>
+</body>
+</html>
