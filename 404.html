@@ -144,10 +144,10 @@
         const path = window.location.pathname;
         const APP_SCHEME = 'ordermobile://';
 
-        // Extract session ID from path like /session/abc-123
+        // Extract session ID from path like /session/abc-123 or /laorden-link/session/abc-123
         function getDeepLinkUrl() {
-            // Remove leading slash and any trailing slashes
-            const cleanPath = path.replace(/^\//, '').replace(/\/$/, '');
+            // Remove /laorden-link prefix if present, then remove leading/trailing slashes
+            const cleanPath = path.replace(/^\/laorden-link\/?/, '').replace(/^\//, '').replace(/\/$/, '');
 
             // Handle different path patterns
             if (cleanPath.startsWith('session/')) {
