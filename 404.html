@@ -148,7 +148,7 @@
         const APP_SCHEME = 'ordermobile://';
 
         function getDeepLinkUrl() {
-            const cleanPath = path.replace(/^\/laorden-link\/?/, '').replace(/^\//, '').replace(/\/$/, '');
+            const cleanPath = path.replace(/^\//, '').replace(/\/$/, '');
 
             if (cleanPath.startsWith('session/')) {
                 const sessionId = cleanPath.replace('session/', '');
