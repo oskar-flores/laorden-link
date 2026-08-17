@@ -225,6 +225,10 @@
         .event-card:hover {
             border-color: var(--border-accent);
         }
+        .event-poster-link {
+            display: block;
+            height: 100%;
+        }
         .event-poster {
             width: 100%;
             height: 100%;
@@ -260,6 +264,33 @@
             margin-bottom: 20px;
             max-width: 50ch;
         }
+        .event-info {
+            margin-bottom: 24px;
+        }
+        .event-info-row {
+            display: grid;
+            grid-template-columns: 175px 1fr;
+            gap: 16px;
+            padding: 10px 0;
+            border-top: 1px solid var(--border-subtle);
+        }
+        .event-info-row:last-child {
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .event-info dt {
+            color: var(--copper);
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            line-height: 1.6;
+            padding-top: 2px;
+        }
+        .event-info dd {
+            color: var(--text-light);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
         .event-tags {
             display: flex;
             gap: 8px;
@@ -276,17 +307,11 @@
             letter-spacing: 1px;
             text-transform: uppercase;
         }
-        .event-cta {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            color: var(--copper-light);
-            font-weight: 600;
-            font-size: 0.85rem;
-            text-decoration: none;
-            transition: gap 0.2s;
+        .event-ctas {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
         }
-        .event-cta:hover { gap: 14px; }
         .event-empty {
             text-align: center;
             padding: 60px 24px;
@@ -436,8 +461,10 @@
         @media (max-width: 768px) {
             .hero h1 { font-size: 2rem; }
             .event-card { grid-template-columns: 1fr; }
+            .event-poster-link { height: auto; }
             .event-poster { min-height: auto; max-height: 500px; }
             .event-details { padding: 24px; }
+            .event-info-row { grid-template-columns: 1fr; gap: 2px; }
             .cards-grid { grid-template-columns: 1fr; }
             .contact-grid { grid-template-columns: 1fr; }
             .hero-ctas { flex-direction: column; align-items: center; }
@@ -448,16 +475,32 @@
 
     <script>
         // =============================================
-        // EVENTS — Edit this array to add/remove events
+        // EVENTS — Edita este array para añadir/quitar eventos
+        //
+        //   title, date, image, description            → obligatorios
+        //   tags:  ["Torneo", "Gratis"]                → opcional, etiquetas
+        //   info:  [{ label: "Precio", value: "7 €" }] → opcional, filas de detalle
+        //   links: [{ label: "Apúntate", url: "..." }] → opcional, botones
+        //                                                (el primero destacado)
         // =============================================
         var EVENTS = [
             {
-                title: "Star Wars Day",
-                date: "Domingo 3 de Mayo",
-                image: "events/starwars-may2025.jpg",
-                description: "Jornada especial de rol y juegos de mesa. Torneo Star Wars Deckbuilding, partidas de rol, Imperial Assault, The Mandalorian y mucho más. Plazas limitadas.",
-                tags: ["Torneo", "Rol", "Juegos de Mesa", "Gratis"],
-                link: ""
+                title: "I Concurso de Pintura de Miniaturas",
+                date: "1 Septiembre — 17 Octubre",
+                image: "events/concurso-pintura.jpg",
+                description: "Todos los participantes pintan la misma miniatura, con total libertad de técnica y esquema de color. Abierto a cualquier persona mayor de 12 años, no hace falta ser socio. Las obras se valoran de forma anónima y se exponen en el local tras la entrega de premios.",
+                tags: ["Concurso", "Pintura", "Miniaturas", "7 €"],
+                info: [
+                    { label: "Inscripción", value: "7 € — incluye la miniatura a pintar y participación en el sorteo" },
+                    { label: "Recoge tu mini", value: "Del 1 de septiembre al 3 de octubre" },
+                    { label: "Entrega tu figura", value: "Del 1 de septiembre al 10 de octubre" },
+                    { label: "Ganadoras", value: "17 de octubre — premio del jurado, premio del público (votación online) y sorteo de regalos" },
+                    { label: "Recogida y entrega", value: "La Orden, Biblos, Fast-copy y Sulaco (Portugalete) · El Dado Verde (Sopelana)" }
+                ],
+                links: [
+                    { label: "Ver las bases", url: "bases.html?doc=concurso-pintura" },
+                    { label: "Más información", url: "mailto:laordenaslu@gmail.com" }
+                ]
             }
         ];
 
@@ -470,23 +513,45 @@
                 return;
             }
 
-            container.innerHTML = EVENTS.map(function(event) {
-                var linkHtml = event.link
-                    ? '<a href="' + event.link + '" class="event-cta" target="_blank" rel="noopener">Apúntate <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>'
-                    : '';
+            // Escapa el texto del array para que comillas y acentos no rompan el HTML
+            function esc(s) {
+                return String(s == null ? '' : s).replace(/[&<>"]/g, function(c) {
+                    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+                });
+            }
 
-                var tagsHtml = event.tags.map(function(tag) {
-                    return '<span class="event-tag">' + tag + '</span>';
+            container.innerHTML = EVENTS.map(function(event) {
+                var tagsHtml = (event.tags || []).map(function(tag) {
+                    return '<span class="event-tag">' + esc(tag) + '</span>';
                 }).join('');
+                tagsHtml = tagsHtml ? '<div class="event-tags">' + tagsHtml + '</div>' : '';
+
+                var infoHtml = (event.info || []).map(function(row) {
+                    return '<div class="event-info-row">'
+                        + '<dt>' + esc(row.label) + '</dt>'
+                        + '<dd>' + esc(row.value) + '</dd>'
+                        + '</div>';
+                }).join('');
+                infoHtml = infoHtml ? '<dl class="event-info">' + infoHtml + '</dl>' : '';
+
+                var linksHtml = (event.links || []).map(function(link, i) {
+                    var ext = /^https?:/i.test(link.url) ? ' target="_blank" rel="noopener"' : '';
+                    var cls = i === 0 ? 'btn-primary' : 'btn-ghost';
+                    return '<a href="' + esc(link.url) + '" class="' + cls + '"' + ext + '>' + esc(link.label) + '</a>';
+                }).join('');
+                linksHtml = linksHtml ? '<div class="event-ctas">' + linksHtml + '</div>' : '';
 
                 return '<div class="event-card">'
-                    + '<img src="' + event.image + '" alt="' + event.title + '" class="event-poster">'
+                    + '<a href="' + esc(event.image) + '" class="event-poster-link" target="_blank" rel="noopener">'
+                    +   '<img src="' + esc(event.image) + '" alt="Cartel de ' + esc(event.title) + '" class="event-poster">'
+                    + '</a>'
                     + '<div class="event-details">'
-                    +   '<div class="event-date">' + event.date + '</div>'
-                    +   '<h3 class="event-title">' + event.title + '</h3>'
-                    +   '<p class="event-desc">' + event.description + '</p>'
-                    +   '<div class="event-tags">' + tagsHtml + '</div>'
-                    +   linkHtml
+                    +   '<div class="event-date">' + esc(event.date) + '</div>'
+                    +   '<h3 class="event-title">' + esc(event.title) + '</h3>'
+                    +   '<p class="event-desc">' + esc(event.description) + '</p>'
+                    +   infoHtml
+                    +   tagsHtml
+                    +   linksHtml
                     + '</div>'
                     + '</div>';
             }).join('');
