@@ -1,7 +1,6 @@
 ---
 title: I Concurso de Pintura de Miniaturas
 subtitle: La Orden Asociación Lúdica · Portugalete, Bizkaia
-pdf: bases/concurso-pintura.pdf
 ---
 
 ## De un vistazo
