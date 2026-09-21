@@ -53,13 +53,21 @@ describe('GET /api/status', () => {
   });
 
   it('nunca revela a quién se votó (resultados sellados, §3)', async () => {
-    await insertVote({ voter_id: 'votante-1' });
+    await insertVote({ voter_id: 'votante-1', mini_code: 'FUGA-99', status: 'valid' });
     const res = await SELF.fetch('https://www.laorden.org/api/status', {
       headers: { Cookie: 'voter_id=votante-1' }
     });
     const body = await res.json();
+
+    // Lista blanca positiva: cualquier campo nuevo, se llame como se llame,
+    // rompe este test hasta que alguien actualice la lista deliberadamente.
+    expect(Object.keys(body).sort()).toEqual(
+      ['closes_at', 'has_voted', 'open', 'opens_at', 'state']
+    );
+
+    // Comprobaciones adicionales, baratas, que no sustituyen a la de arriba.
     expect(body).not.toHaveProperty('voted_for');
-    expect(JSON.stringify(body)).not.toContain('07');
+    expect(JSON.stringify(body)).not.toContain('FUGA-99');
   });
 
   it('no se cachea', async () => {
