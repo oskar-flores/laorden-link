@@ -1,0 +1,19 @@
+name = "laorden-votos"
+main = "src/index.js"
+compatibility_date = "2026-09-21"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "laorden-votos"
+database_id = "PENDIENTE"   # se rellena en la Tarea 6
+migrations_dir = "migrations"
+
+[vars]
+VOTING_OPEN  = "2026-10-11T10:00:00+02:00"
+VOTING_CLOSE = "2026-10-17T12:00:00+02:00"
+MINI_COUNT   = "22"
+# Vacío en producción (mismo origen). Solo para desarrollo local.
+CORS_ORIGIN  = ""
+# Se rellenan en la Tarea 6, al crear la aplicación de Access.
+ACCESS_TEAM_DOMAIN = ""
+ACCESS_AUD         = ""
