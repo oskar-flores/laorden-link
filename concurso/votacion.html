@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Premio del público · La Orden</title>
+    <meta name="description" content="Vota tu miniatura favorita del I Concurso de Pintura de Miniaturas de La Orden, Portugalete.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Karla:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-deep: #0D0906;
+            --bg-warm: #1A1008;
+            --bg-panel: rgba(255,255,255,0.03);
+            --copper: #C47832;
+            --copper-light: #D4924A;
+            --copper-glow: rgba(196,120,50,0.08);
+            --text-light: #F0E6D6;
+            --text-muted: #8A7560;
+            --border-subtle: rgba(196,120,50,0.12);
+            --border-accent: rgba(196,120,50,0.25);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Karla', sans-serif;
+            background: var(--bg-deep);
+            color: var(--text-light);
+            line-height: 1.7;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        h1, h2 {
+            font-family: 'Young Serif', serif;
+            font-weight: 400;
+        }
+
+        a {
+            color: var(--copper-light);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        a:hover { color: var(--copper); }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+        /* --- NAV --- */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 100;
+            background: rgba(13,9,6,0.92);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 14px 0;
+        }
+        .nav-inner {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .nav-brand img {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            border: 1.5px solid var(--copper);
+            object-fit: cover;
+        }
+        .nav-brand span {
+            font-family: 'Young Serif', serif;
+            color: var(--copper);
+            font-size: 1.15rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        .nav-back {
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+        .nav-back:hover { color: var(--copper); }
+
+        .btn-primary {
+            background: rgba(196,120,50,0.15);
+            border: 1px solid var(--border-accent);
+            color: var(--copper-light);
+            padding: 10px 28px;
+            border-radius: 5px;
+            font-family: 'Karla', sans-serif;
+            font-weight: 600;
+            font-size: 0.85rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+        .btn-primary:hover {
+            background: var(--copper);
+            color: var(--bg-deep);
+        }
+        .btn-ghost {
+            background: transparent;
+            border: 1px solid rgba(240,230,214,0.12);
+            color: var(--text-muted);
+            padding: 10px 28px;
+            border-radius: 5px;
+            font-family: 'Karla', sans-serif;
+            font-weight: 500;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+        .btn-ghost:hover {
+            border-color: var(--copper);
+            color: var(--copper);
+        }
+
+        /* --- VOTACIÓN --- */
+        .votacion { max-width: 1100px; margin: 0 auto; padding: 110px 20px 80px; }
+        .vot-header { text-align: center; margin-bottom: 40px; }
+        .vot-sub { color: var(--text-muted); margin-top: 6px; }
+        .vot-estado {
+            margin-top: 22px; padding: 14px 20px; display: inline-block;
+            background: var(--bg-panel); border: 1px solid var(--border-accent);
+            border-radius: 4px; color: var(--copper-light);
+        }
+
+        .vot-grid {
+            display: grid; gap: 20px;
+            grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+        }
+        .vot-grid.vot-bloqueada { pointer-events: none; opacity: 0.55; }
+
+        .obra {
+            display: block; width: 100%; padding: 0; cursor: pointer;
+            background: var(--bg-panel); border: 1px solid var(--border-subtle);
+            border-radius: 4px; overflow: hidden; color: inherit;
+            font-family: inherit; transition: transform .25s, border-color .25s;
+        }
+        .obra:hover { transform: translateY(-4px); border-color: var(--border-accent); }
+        .obra img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; }
+
+        .obra-placeholder {
+            display: flex; align-items: center; justify-content: center;
+            aspect-ratio: 1; border-bottom: 1px dashed var(--border-accent);
+        }
+        .obra-placeholder span {
+            font-family: 'Young Serif', serif; font-size: 2.4rem; color: var(--text-muted);
+        }
+        .obra-codigo {
+            display: block; padding: 10px; text-align: center;
+            color: var(--copper-light); font-weight: 600; letter-spacing: .04em;
+        }
+
+        .vot-modal {
+            position: fixed; inset: 0; z-index: 200; display: flex;
+            align-items: center; justify-content: center; padding: 20px;
+            background: rgba(13,9,6,0.85); backdrop-filter: blur(4px);
+        }
+        .vot-modal[hidden] { display: none; }
+        .vot-modal-caja {
+            background: var(--bg-warm); border: 1px solid var(--border-accent);
+            border-radius: 6px; padding: 30px; max-width: 460px; width: 100%;
+        }
+        .vot-consent { color: var(--text-muted); font-size: .88rem; margin: 16px 0; }
+        .vot-modal-botones {
+            display: flex; gap: 12px; justify-content: flex-end; margin-top: 22px;
+        }
+        .vot-modal-botones button { cursor: pointer; font-family: inherit; }
+        .vot-modal-botones button[disabled] { opacity: .5; cursor: not-allowed; }
+        .vot-error { color: #E08A6A; margin-top: 16px; }
+
+        @media (max-width: 560px) {
+            .votacion { padding: 90px 16px 60px; }
+            .vot-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
+        }
+
+        /* --- FOOTER --- */
+        footer {
+            margin-top: auto;
+            padding: 28px 0;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            border-top: 1px solid var(--border-subtle);
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="nav-inner">
+            <a href="../index.html" class="nav-brand">
+                <img src="../logo.jpg" alt="Logo La Orden">
+                <span>La Orden</span>
+            </a>
+            <a href="../index.html#eventos" class="nav-back">&larr; Volver a eventos</a>
+        </div>
+    </nav>
+
+    <main class="votacion">
+        <header class="vot-header">
+            <h1>Premio del público</h1>
+            <p class="vot-sub">I Concurso de Pintura de Miniaturas · La Orden</p>
+            <div id="vot-estado" class="vot-estado">Cargando…</div>
+        </header>
+        <div id="vot-grid" class="vot-grid"></div>
+    </main>
+
+    <div id="vot-modal" class="vot-modal" hidden>
+        <div class="vot-modal-caja" role="dialog" aria-modal="true" aria-labelledby="vot-modal-titulo">
+            <h2 id="vot-modal-titulo">¿Votar por la obra <span id="vot-modal-codigo"></span>?</h2>
+            <p>Solo puedes votar una vez. No podrás cambiar tu voto.</p>
+            <p class="vot-consent">
+                Para evitar votos duplicados registramos un identificador de tu navegador
+                y dispositivo, junto con tu IP de forma anonimizada.
+                <a href="privacidad.html">Más información</a>
+            </p>
+            <div id="vot-turnstile"></div>
+            <div class="vot-modal-botones">
+                <button type="button" id="vot-cancelar" class="btn-ghost">Cancelar</button>
+                <button type="button" id="vot-confirmar" class="btn-primary" disabled>Confirmar voto</button>
+            </div>
+            <p id="vot-error" class="vot-error" hidden></p>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            La Orden &copy; 2025 &middot; Asociación Lúdica
+        </div>
+    </footer>
+
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+    <script>
+        // =============================================
+        // VOTACIÓN — configuración
+        //
+        //   API_BASE:      vacío en producción (Worker en el mismo dominio).
+        //                  En local, la URL del Worker de pruebas:
+        //                  'https://laorden-votos.<subdominio>.workers.dev'
+        //   TURNSTILE_KEY: clave pública del widget (se rellena en la Tarea 6)
+        // =============================================
+        var API_BASE = '';
+        var TURNSTILE_KEY = 'PENDIENTE';
+
+        var FP_CDN = 'https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@4/dist/fp.min.js';
+
+        var estadoEl = document.getElementById('vot-estado');
+        var gridEl = document.getElementById('vot-grid');
+        var modalEl = document.getElementById('vot-modal');
+        var errorEl = document.getElementById('vot-error');
+        var confirmarEl = document.getElementById('vot-confirmar');
+
+        var estado = null;
+        var obraElegida = null;
+        var turnstileToken = null;
+        var turnstileId = null;
+
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"]/g, function(c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+            });
+        }
+
+        function yaVotadoLocal() {
+            try { return localStorage.getItem('laorden_voto') === 'si'; }
+            catch (e) { return false; }
+        }
+
+        function marcarVotadoLocal() {
+            try { localStorage.setItem('laorden_voto', 'si'); } catch (e) {}
+        }
+
+        // --- Galería -------------------------------------------------------
+        function pintarGaleria(obras) {
+            gridEl.innerHTML = obras.map(function(obra) {
+                var codigo = esc(obra.code);
+                var interior = obra.thumb
+                    ? '<img src="' + esc(obra.thumb) + '" alt="Obra ' + codigo + '" loading="lazy">'
+                    : '<div class="obra-placeholder"><span>' + codigo + '</span></div>';
+                return '<button type="button" class="obra" data-codigo="' + codigo + '">'
+                     + interior
+                     + '<span class="obra-codigo">#' + codigo + '</span>'
+                     + '</button>';
+            }).join('');
+
+            Array.prototype.forEach.call(gridEl.querySelectorAll('.obra'), function(boton) {
+                boton.addEventListener('click', function() {
+                    abrirModal(boton.getAttribute('data-codigo'));
+                });
+            });
+            aplicarEstado();
+        }
+
+        function aplicarEstado() {
+            var votado = (estado && estado.has_voted) || yaVotadoLocal();
+            var abierta = estado && estado.open;
+            var texto;
+
+            if (votado) texto = '¡Gracias! Tu voto se ha registrado.';
+            else if (!estado) texto = 'No hemos podido comprobar el estado de la votación.';
+            else if (estado.state === 'before') texto = 'La votación abre el 11 de octubre.';
+            else if (estado.state === 'after') texto = 'La votación ha finalizado.';
+            else texto = 'Elige tu obra favorita. Solo puedes votar una vez.';
+
+            estadoEl.textContent = texto;
+            gridEl.classList.toggle('vot-bloqueada', !abierta || votado);
+        }
+
+        // --- Modal ---------------------------------------------------------
+        function abrirModal(codigo) {
+            if (!estado || !estado.open || estado.has_voted || yaVotadoLocal()) return;
+            obraElegida = codigo;
+            document.getElementById('vot-modal-codigo').textContent = '#' + codigo;
+            errorEl.hidden = true;
+            confirmarEl.disabled = true;
+            modalEl.hidden = false;
+
+            // La huella se calcula solo aquí: quien no vota nunca es identificado (§12).
+            cargarHuella();
+            montarTurnstile();
+        }
+
+        function cerrarModal() {
+            modalEl.hidden = true;
+            obraElegida = null;
+            turnstileToken = null;
+            if (turnstileId !== null && window.turnstile) window.turnstile.reset(turnstileId);
+        }
+
+        var huellaPromesa = null;
+        function cargarHuella() {
+            if (huellaPromesa) return huellaPromesa;
+            huellaPromesa = new Promise(function(resolve) {
+                var s = document.createElement('script');
+                s.src = FP_CDN;
+                s.onload = function() {
+                    window.FingerprintJS.load().then(function(fp) {
+                        return fp.get();
+                    }).then(function(r) { resolve(r.visitorId); })
+                      .catch(function() { resolve(''); });
+                };
+                s.onerror = function() { resolve(''); };
+                document.head.appendChild(s);
+            });
+            return huellaPromesa;
+        }
+
+        function montarTurnstile() {
+            if (turnstileId !== null || !window.turnstile) return;
+            turnstileId = window.turnstile.render('#vot-turnstile', {
+                sitekey: TURNSTILE_KEY,
+                callback: function(token) { turnstileToken = token; confirmarEl.disabled = false; },
+                'error-callback': function() { turnstileToken = null; confirmarEl.disabled = true; }
+            });
+        }
+
+        // --- Envío ---------------------------------------------------------
+        confirmarEl.addEventListener('click', function() {
+            confirmarEl.disabled = true;
+            cargarHuella().then(function(huella) {
+                return fetch(API_BASE + '/api/vote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        mini_code: obraElegida,
+                        fingerprint: huella,
+                        turnstile_token: turnstileToken
+                    })
+                });
+            }).then(function(res) {
+                return res.json().then(function(body) { return { status: res.status, body: body }; });
+            }).then(function(r) {
+                if (r.status === 200) {
+                    marcarVotadoLocal();
+                    if (estado) estado.has_voted = true;
+                    cerrarModal();
+                    aplicarEstado();
+                } else {
+                    errorEl.textContent = r.body.message || 'No hemos podido registrar tu voto.';
+                    errorEl.hidden = false;
+                    if (window.turnstile && turnstileId !== null) window.turnstile.reset(turnstileId);
+                }
+            }).catch(function() {
+                errorEl.textContent = 'No hemos podido conectar. Inténtalo de nuevo.';
+                errorEl.hidden = false;
+                confirmarEl.disabled = false;
+            });
+        });
+
+        document.getElementById('vot-cancelar').addEventListener('click', cerrarModal);
+        modalEl.addEventListener('click', function(e) { if (e.target === modalEl) cerrarModal(); });
+        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') cerrarModal(); });
+
+        // --- Arranque ------------------------------------------------------
+        fetch(API_BASE + '/api/status', { credentials: 'include' })
+            .then(function(r) { return r.json(); })
+            .then(function(s) { estado = s; })
+            .catch(function() { estado = null; })
+            .then(function() { return fetch('obras.json'); })
+            .then(function(r) { return r.json(); })
+            .then(pintarGaleria)
+            .catch(function() {
+                estadoEl.textContent = 'No hemos podido cargar la galería.';
+            });
+    </script>
+
+</body>
+</html>
