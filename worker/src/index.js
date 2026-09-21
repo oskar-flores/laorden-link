@@ -1,5 +1,6 @@
 import { handleStatus } from './routes/status.js';
 import { handleVote } from './routes/vote.js';
+import { handleAdminResults } from './routes/admin.js';
 import { withCors, handlePreflight } from './lib/cors.js';
 
 export default {
@@ -13,6 +14,8 @@ export default {
       response = await handleStatus(request, env);
     } else if (pathname === '/api/vote' && request.method === 'POST') {
       response = await handleVote(request, env);
+    } else if (pathname === '/admin/results' && request.method === 'GET') {
+      response = await handleAdminResults(request, env);
     } else {
       response = new Response('No encontrado', { status: 404 });
     }
