@@ -54,6 +54,9 @@ export async function handleVote(request, env) {
   } catch {
     return json(400, false, MSG.badCode);
   }
+  if (typeof body !== 'object' || body === null) {
+    return json(400, false, MSG.badCode);
+  }
   if (!isValidMiniCode(body.mini_code, env.MINI_COUNT)) {
     return json(400, false, MSG.badCode);
   }

@@ -116,6 +116,18 @@ describe('POST /api/vote', () => {
     }
   );
 
+  it('rechaza un cuerpo JSON `null` (400)', async () => {
+    const res = await vote(null);
+    expect(res.status).toBe(400);
+    expect((await res.json()).message).toBe('Obra no válida.');
+  });
+
+  it('rechaza un cuerpo JSON que no es un objeto (400)', async () => {
+    const res = await vote(123);
+    expect(res.status).toBe(400);
+    expect((await res.json()).message).toBe('Obra no válida.');
+  });
+
   it('no guarda nunca la IP en claro (§12)', async () => {
     mockTurnstile(true);
     await vote(VALIDO, { ip: '81.44.123.45' });
