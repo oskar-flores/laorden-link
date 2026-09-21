@@ -285,8 +285,13 @@
         var ESPERA_RED = 12000;        // corta una petición colgada a /api/vote o /api/status
         var REFRESCO_ESTADO = 60000;   // la ventana puede abrirse o cerrarse con la página abierta
 
+        // Dos fallos distintos, dos remedios distintos: el script que no llega
+        // (bloqueador) y el widget que sí carga pero no verifica.
         var MSG_SIN_TURNSTILE = 'No hemos podido cargar la verificación de seguridad. '
             + 'Si usas un bloqueador de contenido, desactívalo para esta página y recarga.';
+        var MSG_TURNSTILE_KO = 'La verificación de seguridad no ha podido completarse. '
+            + 'Cierra esta ventana, vuelve a abrirla e inténtalo otra vez; '
+            + 'si sigue fallando, recarga la página.';
 
         var estadoEl = document.getElementById('vot-estado');
         var gridEl = document.getElementById('vot-grid');
@@ -304,6 +309,7 @@
         var turnstileFallo = false;
         var turnstileSondeo = null;
         var focoPrevio = null;
+        var abriendo = false;
 
         function esc(s) {
             return String(s == null ? '' : s).replace(/[&<>"]/g, function(c) {
@@ -323,6 +329,18 @@
         function mostrarError(texto) {
             errorEl.textContent = texto;
             errorEl.hidden = false;
+        }
+
+        /** Añade una explicación sin pisar el motivo que ya dio el servidor. */
+        function agregarError(texto) {
+            var actual = errorEl.hidden ? '' : errorEl.textContent;
+            errorEl.textContent = actual ? actual + ' ' + texto : texto;
+            errorEl.hidden = false;
+        }
+
+        function ocultarError() {
+            errorEl.textContent = '';
+            errorEl.hidden = true;
         }
 
         /** fetch con plazo: aborta y rechaza en vez de quedarse colgado. */
@@ -411,13 +429,25 @@
 
         // --- Modal ---------------------------------------------------------
         function abrirModal(codigo) {
+            // Sin esta guardia, dos clics dentro de la misma consulta abren el
+            // modal dos veces y el segundo guarda como foco previo la propia caja.
+            if (abriendo || !modalEl.hidden) return;
             if (!puedeVotar()) { aplicarEstado(); return; }
+            abriendo = true;
+            // La consulta puede tardar hasta ESPERA_RED: el clic tiene que
+            // notarse en algo mientras tanto.
+            estadoEl.textContent = 'Comprobando la votación…';
+
             // La página puede llevar horas abierta: volvemos a preguntar antes de
             // enseñar un formulario que el servidor ya no aceptaría.
+            function fin() { abriendo = false; }
             refrescarEstado().then(function() {
-                if (!puedeVotar()) { aplicarEstado(); return; }
+                aplicarEstado();            // quita el «Comprobando…» pase lo que pase
+                if (!puedeVotar()) return;
                 mostrarModal(codigo);
-            });
+            }).catch(function() {
+                aplicarEstado();
+            }).then(fin, fin);
         }
 
         function mostrarModal(codigo) {
@@ -451,6 +481,9 @@
             modalEl.hidden = true;
             obraElegida = null;
             turnstileToken = null;
+            // El sondeo no tiene nada que vigilar con el modal cerrado, y si
+            // venciese aquí escribiría en un diálogo invisible.
+            pararSondeo();
             if (window.turnstile && turnstileId !== null) {
                 try { window.turnstile.reset(turnstileId); } catch (e) {}
             }
@@ -464,7 +497,10 @@
         }
 
         function actualizarConfirmar() {
-            confirmarEl.disabled = !turnstileToken;
+            // Única autoridad sobre el botón (salvo el apagado mientras se envía):
+            // sin token no se puede votar, y quien ya votó tampoco.
+            var votado = (estado && estado.has_voted) || yaVotadoLocal();
+            confirmarEl.disabled = !turnstileToken || votado;
         }
 
         // --- Foco dentro del modal ------------------------------------------
@@ -475,17 +511,26 @@
             });
         }
 
+        function posicionFoco(focos, el) {
+            for (var i = 0; i < focos.length; i++) {
+                if (focos[i] === el) return i;
+            }
+            return -1;
+        }
+
         function atraparTab(e) {
             var focos = focosModal();
             if (!focos.length) { e.preventDefault(); cajaEl.focus(); return; }
             var primero = focos[0];
             var ultimo = focos[focos.length - 1];
-            var activo = document.activeElement;
-            var dentro = modalEl.contains(activo);
-            if (e.shiftKey && (!dentro || activo === primero)) {
+            // La caja lleva tabindex="-1": está dentro del modal pero no es un
+            // destino tabulable, así que cuenta como «fuera». Si no, el primer
+            // Shift+Tab tras abrir se escapa al fondo de la página.
+            var posicion = posicionFoco(focos, document.activeElement);
+            if (e.shiftKey && (posicion === -1 || posicion === 0)) {
                 e.preventDefault();
                 ultimo.focus();
-            } else if (!e.shiftKey && (!dentro || activo === ultimo)) {
+            } else if (!e.shiftKey && (posicion === -1 || posicion === focos.length - 1)) {
                 e.preventDefault();
                 primero.focus();
             }
@@ -527,27 +572,43 @@
         }
 
         // --- Turnstile -------------------------------------------------------
+        function pararSondeo() {
+            if (turnstileSondeo !== null) {
+                clearInterval(turnstileSondeo);
+                turnstileSondeo = null;
+            }
+        }
+
         function montarTurnstile() {
             if (turnstileId !== null) return;
-            if (turnstileFallo) { mostrarError(MSG_SIN_TURNSTILE); return; }
-            if (window.turnstile) { renderizarTurnstile(); return; }
+            // Un window.turnstile presente manda sobre cualquier veredicto
+            // anterior: un script que llega tarde debe poder recuperarse.
+            if (window.turnstile) { turnstileDisponible(); return; }
+            // Ya lo dimos por perdido, pero seguimos vigilando por si aparece.
+            if (turnstileFallo) mostrarError(MSG_SIN_TURNSTILE);
             if (turnstileSondeo !== null) return;
 
             // El script se carga con async: que no esté todavía no prueba nada.
-            // Solo damos el fallo por seguro cuando se agota el plazo.
+            // Solo avisamos cuando se agota el plazo, y aun así seguimos mirando.
             var limite = Date.now() + ESPERA_TURNSTILE;
             turnstileSondeo = setInterval(function() {
                 if (window.turnstile) {
-                    clearInterval(turnstileSondeo);
-                    turnstileSondeo = null;
-                    renderizarTurnstile();
-                } else if (Date.now() > limite) {
-                    clearInterval(turnstileSondeo);
-                    turnstileSondeo = null;
+                    pararSondeo();
+                    turnstileDisponible();
+                } else if (!turnstileFallo && Date.now() > limite) {
                     turnstileFallo = true;
                     mostrarError(MSG_SIN_TURNSTILE);
                 }
             }, 200);
+        }
+
+        /** El script está aquí: se borra el veredicto de «no ha llegado». */
+        function turnstileDisponible() {
+            if (turnstileFallo) {
+                turnstileFallo = false;
+                ocultarError();
+            }
+            renderizarTurnstile();
         }
 
         function renderizarTurnstile() {
@@ -555,13 +616,18 @@
                 turnstileId = window.turnstile.render('#vot-turnstile', {
                     sitekey: TURNSTILE_KEY,
                     callback: function(token) { turnstileToken = token; actualizarConfirmar(); },
-                    'error-callback': function() { turnstileToken = null; actualizarConfirmar(); },
+                    'error-callback': function() {
+                        // El widget existe pero no verifica (clave inválida, red,
+                        // reto fallido): sin mensaje sería otro botón muerto mudo.
+                        turnstileToken = null;
+                        actualizarConfirmar();
+                        mostrarError(MSG_TURNSTILE_KO);
+                    },
                     'expired-callback': function() { turnstileToken = null; actualizarConfirmar(); }
                 });
             } catch (e) {
                 turnstileId = null;
-                turnstileFallo = true;
-                mostrarError(MSG_SIN_TURNSTILE);
+                mostrarError(MSG_TURNSTILE_KO);
             }
         }
 
@@ -570,11 +636,12 @@
             turnstileToken = null;
             if (window.turnstile && turnstileId !== null) {
                 try { window.turnstile.reset(turnstileId); } catch (e) {}
-                actualizarConfirmar();   // se reactiva cuando llegue el token nuevo
             } else {
-                // Sin widget no hay callback que reactive: no dejamos el botón muerto.
-                confirmarEl.disabled = false;
+                // Sin widget no hay token posible: un botón vivo solo serviría
+                // para encadenar 403. Se explica y se deja apagado.
+                agregarError(MSG_SIN_TURNSTILE);
             }
+            actualizarConfirmar();   // se reactiva sola cuando llegue un token nuevo
         }
 
         // --- Envío ---------------------------------------------------------
@@ -614,7 +681,7 @@
                     if (estado) estado.has_voted = true;
                     aplicarEstado();
                     mostrarError(r.body.message || 'Ya se ha registrado un voto desde este dispositivo.');
-                    confirmarEl.disabled = true;
+                    actualizarConfirmar();   // ya ha votado: el botón no revive
                 } else {
                     mostrarError(r.body.message || 'No hemos podido registrar tu voto.');
                     reiniciarVerificacion();
