@@ -159,6 +159,8 @@
         }
         .obra:hover { transform: translateY(-4px); border-color: var(--border-accent); }
         .obra img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; }
+        .obra[disabled] { cursor: default; }
+        .obra[disabled]:hover { transform: none; border-color: var(--border-subtle); }
 
         .obra-placeholder {
             display: flex; align-items: center; justify-content: center;
@@ -181,6 +183,14 @@
         .vot-modal-caja {
             background: var(--bg-warm); border: 1px solid var(--border-accent);
             border-radius: 6px; padding: 30px; max-width: 460px; width: 100%;
+            max-height: 92vh; overflow-y: auto;
+        }
+        .vot-modal-foto { margin: 16px 0; }
+        .vot-modal-foto[hidden] { display: none; }
+        .vot-modal-foto img {
+            display: block; width: 100%; max-height: 46vh; object-fit: contain;
+            border-radius: 4px; border: 1px solid var(--border-subtle);
+            background: var(--bg-panel);
         }
         .vot-consent { color: var(--text-muted); font-size: .88rem; margin: 16px 0; }
         .vot-modal-botones {
@@ -223,14 +233,15 @@
         <header class="vot-header">
             <h1>Premio del público</h1>
             <p class="vot-sub">I Concurso de Pintura de Miniaturas · La Orden</p>
-            <div id="vot-estado" class="vot-estado">Cargando…</div>
+            <div id="vot-estado" class="vot-estado" role="status" aria-live="polite" tabindex="-1">Cargando…</div>
         </header>
         <div id="vot-grid" class="vot-grid"></div>
     </main>
 
     <div id="vot-modal" class="vot-modal" hidden>
-        <div class="vot-modal-caja" role="dialog" aria-modal="true" aria-labelledby="vot-modal-titulo">
+        <div class="vot-modal-caja" id="vot-modal-caja" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="vot-modal-titulo">
             <h2 id="vot-modal-titulo">¿Votar por la obra <span id="vot-modal-codigo"></span>?</h2>
+            <div id="vot-modal-foto" class="vot-modal-foto" hidden></div>
             <p>Solo puedes votar una vez. No podrás cambiar tu voto.</p>
             <p class="vot-consent">
                 Para evitar votos duplicados registramos un identificador de tu navegador
@@ -242,7 +253,7 @@
                 <button type="button" id="vot-cancelar" class="btn-ghost">Cancelar</button>
                 <button type="button" id="vot-confirmar" class="btn-primary" disabled>Confirmar voto</button>
             </div>
-            <p id="vot-error" class="vot-error" hidden></p>
+            <p id="vot-error" class="vot-error" role="alert" hidden></p>
         </div>
     </div>
 
@@ -267,16 +278,32 @@
 
         var FP_CDN = 'https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@4/dist/fp.min.js';
 
+        // Plazos (ms). Ningún camino puede quedarse esperando para siempre:
+        // todos acaban en un mensaje visible o en un valor por defecto.
+        var ESPERA_TURNSTILE = 8000;   // el script de Turnstile es async: puede estar cargando
+        var ESPERA_HUELLA = 6000;      // si tarda más, se vota sin huella (el servidor lo acepta)
+        var ESPERA_RED = 12000;        // corta una petición colgada a /api/vote o /api/status
+        var REFRESCO_ESTADO = 60000;   // la ventana puede abrirse o cerrarse con la página abierta
+
+        var MSG_SIN_TURNSTILE = 'No hemos podido cargar la verificación de seguridad. '
+            + 'Si usas un bloqueador de contenido, desactívalo para esta página y recarga.';
+
         var estadoEl = document.getElementById('vot-estado');
         var gridEl = document.getElementById('vot-grid');
         var modalEl = document.getElementById('vot-modal');
+        var cajaEl = document.getElementById('vot-modal-caja');
+        var fotoEl = document.getElementById('vot-modal-foto');
         var errorEl = document.getElementById('vot-error');
         var confirmarEl = document.getElementById('vot-confirmar');
 
         var estado = null;
+        var obras = [];
         var obraElegida = null;
         var turnstileToken = null;
         var turnstileId = null;
+        var turnstileFallo = false;
+        var turnstileSondeo = null;
+        var focoPrevio = null;
 
         function esc(s) {
             return String(s == null ? '' : s).replace(/[&<>"]/g, function(c) {
@@ -293,8 +320,35 @@
             try { localStorage.setItem('laorden_voto', 'si'); } catch (e) {}
         }
 
+        function mostrarError(texto) {
+            errorEl.textContent = texto;
+            errorEl.hidden = false;
+        }
+
+        /** fetch con plazo: aborta y rechaza en vez de quedarse colgado. */
+        function fetchConPlazo(url, opciones, ms) {
+            opciones = opciones || {};
+            var control = typeof AbortController === 'function' ? new AbortController() : null;
+            if (control) opciones.signal = control.signal;
+            var corte = null;
+            var reloj = new Promise(function(_, reject) {
+                corte = setTimeout(function() {
+                    if (control) control.abort();
+                    reject(new Error('tiempo agotado'));
+                }, ms);
+            });
+            return Promise.race([fetch(url, opciones), reloj]).then(function(r) {
+                clearTimeout(corte);
+                return r;
+            }, function(e) {
+                clearTimeout(corte);
+                throw e;
+            });
+        }
+
         // --- Galería -------------------------------------------------------
-        function pintarGaleria(obras) {
+        function pintarGaleria(lista) {
+            obras = lista || [];
             gridEl.innerHTML = obras.map(function(obra) {
                 var codigo = esc(obra.code);
                 var interior = obra.thumb
@@ -314,9 +368,21 @@
             aplicarEstado();
         }
 
+        function buscarObra(codigo) {
+            for (var i = 0; i < obras.length; i++) {
+                if (String(obras[i].code) === String(codigo)) return obras[i];
+            }
+            return null;
+        }
+
+        function puedeVotar() {
+            return !!(estado && estado.open && !estado.has_voted && !yaVotadoLocal());
+        }
+
         function aplicarEstado() {
             var votado = (estado && estado.has_voted) || yaVotadoLocal();
-            var abierta = estado && estado.open;
+            var abierta = !!(estado && estado.open);
+            var bloqueada = !abierta || votado;
             var texto;
 
             if (votado) texto = '¡Gracias! Tu voto se ha registrado.';
@@ -326,62 +392,198 @@
             else texto = 'Elige tu obra favorita. Solo puedes votar una vez.';
 
             estadoEl.textContent = texto;
-            gridEl.classList.toggle('vot-bloqueada', !abierta || votado);
+            gridEl.classList.toggle('vot-bloqueada', bloqueada);
+            // pointer-events no frena el teclado: hay que deshabilitar de verdad.
+            Array.prototype.forEach.call(gridEl.querySelectorAll('.obra'), function(boton) {
+                boton.disabled = bloqueada;
+            });
+        }
+
+        function refrescarEstado() {
+            return fetchConPlazo(API_BASE + '/api/status', { credentials: 'include' }, ESPERA_RED)
+                .then(function(r) {
+                    if (!r.ok) throw new Error('estado no disponible');
+                    return r.json();
+                })
+                .then(function(s) { estado = s; aplicarEstado(); })
+                .catch(function() { /* nos quedamos con el último estado conocido */ });
         }
 
         // --- Modal ---------------------------------------------------------
         function abrirModal(codigo) {
-            if (!estado || !estado.open || estado.has_voted || yaVotadoLocal()) return;
+            if (!puedeVotar()) { aplicarEstado(); return; }
+            // La página puede llevar horas abierta: volvemos a preguntar antes de
+            // enseñar un formulario que el servidor ya no aceptaría.
+            refrescarEstado().then(function() {
+                if (!puedeVotar()) { aplicarEstado(); return; }
+                mostrarModal(codigo);
+            });
+        }
+
+        function mostrarModal(codigo) {
+            focoPrevio = document.activeElement;
             obraElegida = codigo;
             document.getElementById('vot-modal-codigo').textContent = '#' + codigo;
+            pintarFoto(buscarObra(codigo));
+            errorEl.textContent = '';
             errorEl.hidden = true;
-            confirmarEl.disabled = true;
+            actualizarConfirmar();
             modalEl.hidden = false;
+            cajaEl.focus();
 
             // La huella se calcula solo aquí: quien no vota nunca es identificado (§12).
             cargarHuella();
             montarTurnstile();
         }
 
+        function pintarFoto(obra) {
+            if (obra && obra.img) {
+                fotoEl.innerHTML = '<img src="' + esc(obra.img)
+                    + '" alt="Obra ' + esc(obra.code) + '">';
+                fotoEl.hidden = false;
+            } else {
+                fotoEl.innerHTML = '';
+                fotoEl.hidden = true;
+            }
+        }
+
         function cerrarModal() {
             modalEl.hidden = true;
             obraElegida = null;
             turnstileToken = null;
-            if (turnstileId !== null && window.turnstile) window.turnstile.reset(turnstileId);
+            if (window.turnstile && turnstileId !== null) {
+                try { window.turnstile.reset(turnstileId); } catch (e) {}
+            }
+            // El reset puede volver a disparar el callback con el modal oculto:
+            // el botón se recalcula siempre desde el token real, nunca a ciegas.
+            actualizarConfirmar();
+            if (focoPrevio && focoPrevio.focus && document.body.contains(focoPrevio)) {
+                focoPrevio.focus();
+            }
+            focoPrevio = null;
         }
 
+        function actualizarConfirmar() {
+            confirmarEl.disabled = !turnstileToken;
+        }
+
+        // --- Foco dentro del modal ------------------------------------------
+        function focosModal() {
+            var candidatos = modalEl.querySelectorAll('button, a[href], iframe, input, select, textarea');
+            return Array.prototype.filter.call(candidatos, function(el) {
+                return !el.disabled && el.getAttribute('tabindex') !== '-1' && !el.hidden;
+            });
+        }
+
+        function atraparTab(e) {
+            var focos = focosModal();
+            if (!focos.length) { e.preventDefault(); cajaEl.focus(); return; }
+            var primero = focos[0];
+            var ultimo = focos[focos.length - 1];
+            var activo = document.activeElement;
+            var dentro = modalEl.contains(activo);
+            if (e.shiftKey && (!dentro || activo === primero)) {
+                e.preventDefault();
+                ultimo.focus();
+            } else if (!e.shiftKey && (!dentro || activo === ultimo)) {
+                e.preventDefault();
+                primero.focus();
+            }
+        }
+
+        // --- Huella ---------------------------------------------------------
         var huellaPromesa = null;
         function cargarHuella() {
             if (huellaPromesa) return huellaPromesa;
             huellaPromesa = new Promise(function(resolve) {
+                var resuelta = false;
+                function terminar(valor) {
+                    if (resuelta) return;
+                    resuelta = true;
+                    resolve(valor);
+                }
+                // Sin huella se vota igual: el servidor deduplica por cookie.
+                setTimeout(function() { terminar(''); }, ESPERA_HUELLA);
+
                 var s = document.createElement('script');
                 s.src = FP_CDN;
                 s.onload = function() {
-                    window.FingerprintJS.load().then(function(fp) {
-                        return fp.get();
-                    }).then(function(r) { resolve(r.visitorId); })
-                      .catch(function() { resolve(''); });
+                    // Si el CDN devuelve un 200 que no es la librería (portal
+                    // cautivo, página de error), esto lanza de forma síncrona y
+                    // sin el try la promesa se quedaría pendiente para siempre.
+                    try {
+                        window.FingerprintJS.load().then(function(fp) {
+                            return fp.get();
+                        }).then(function(r) { terminar(r.visitorId); })
+                          .catch(function() { terminar(''); });
+                    } catch (e) {
+                        terminar('');
+                    }
                 };
-                s.onerror = function() { resolve(''); };
+                s.onerror = function() { terminar(''); };
                 document.head.appendChild(s);
             });
             return huellaPromesa;
         }
 
+        // --- Turnstile -------------------------------------------------------
         function montarTurnstile() {
-            if (turnstileId !== null || !window.turnstile) return;
-            turnstileId = window.turnstile.render('#vot-turnstile', {
-                sitekey: TURNSTILE_KEY,
-                callback: function(token) { turnstileToken = token; confirmarEl.disabled = false; },
-                'error-callback': function() { turnstileToken = null; confirmarEl.disabled = true; }
-            });
+            if (turnstileId !== null) return;
+            if (turnstileFallo) { mostrarError(MSG_SIN_TURNSTILE); return; }
+            if (window.turnstile) { renderizarTurnstile(); return; }
+            if (turnstileSondeo !== null) return;
+
+            // El script se carga con async: que no esté todavía no prueba nada.
+            // Solo damos el fallo por seguro cuando se agota el plazo.
+            var limite = Date.now() + ESPERA_TURNSTILE;
+            turnstileSondeo = setInterval(function() {
+                if (window.turnstile) {
+                    clearInterval(turnstileSondeo);
+                    turnstileSondeo = null;
+                    renderizarTurnstile();
+                } else if (Date.now() > limite) {
+                    clearInterval(turnstileSondeo);
+                    turnstileSondeo = null;
+                    turnstileFallo = true;
+                    mostrarError(MSG_SIN_TURNSTILE);
+                }
+            }, 200);
+        }
+
+        function renderizarTurnstile() {
+            try {
+                turnstileId = window.turnstile.render('#vot-turnstile', {
+                    sitekey: TURNSTILE_KEY,
+                    callback: function(token) { turnstileToken = token; actualizarConfirmar(); },
+                    'error-callback': function() { turnstileToken = null; actualizarConfirmar(); },
+                    'expired-callback': function() { turnstileToken = null; actualizarConfirmar(); }
+                });
+            } catch (e) {
+                turnstileId = null;
+                turnstileFallo = true;
+                mostrarError(MSG_SIN_TURNSTILE);
+            }
+        }
+
+        /** Tras un intento fallido: el token ya está gastado, hay que renovarlo. */
+        function reiniciarVerificacion() {
+            turnstileToken = null;
+            if (window.turnstile && turnstileId !== null) {
+                try { window.turnstile.reset(turnstileId); } catch (e) {}
+                actualizarConfirmar();   // se reactiva cuando llegue el token nuevo
+            } else {
+                // Sin widget no hay callback que reactive: no dejamos el botón muerto.
+                confirmarEl.disabled = false;
+            }
         }
 
         // --- Envío ---------------------------------------------------------
         confirmarEl.addEventListener('click', function() {
+            if (!obraElegida) return;
             confirmarEl.disabled = true;
+            errorEl.hidden = true;
             cargarHuella().then(function(huella) {
-                return fetch(API_BASE + '/api/vote', {
+                return fetchConPlazo(API_BASE + '/api/vote', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
@@ -390,42 +592,68 @@
                         fingerprint: huella,
                         turnstile_token: turnstileToken
                     })
-                });
+                }, ESPERA_RED);
             }).then(function(res) {
-                return res.json().then(function(body) { return { status: res.status, body: body }; });
+                return res.json().then(function(body) {
+                    return { status: res.status, body: body };
+                }, function() {
+                    return { status: res.status, body: {} };
+                });
             }).then(function(r) {
                 if (r.status === 200) {
                     marcarVotadoLocal();
                     if (estado) estado.has_voted = true;
                     cerrarModal();
                     aplicarEstado();
+                    // La casilla que acaba de votar queda deshabilitada: llevamos
+                    // el foco al mensaje en vez de dejarlo en el limbo.
+                    estadoEl.focus();
+                } else if (r.status === 409) {
+                    // El servidor manda: ya existe un voto de esta persona.
+                    marcarVotadoLocal();
+                    if (estado) estado.has_voted = true;
+                    aplicarEstado();
+                    mostrarError(r.body.message || 'Ya se ha registrado un voto desde este dispositivo.');
+                    confirmarEl.disabled = true;
                 } else {
-                    errorEl.textContent = r.body.message || 'No hemos podido registrar tu voto.';
-                    errorEl.hidden = false;
-                    if (window.turnstile && turnstileId !== null) window.turnstile.reset(turnstileId);
+                    mostrarError(r.body.message || 'No hemos podido registrar tu voto.');
+                    reiniciarVerificacion();
                 }
             }).catch(function() {
-                errorEl.textContent = 'No hemos podido conectar. Inténtalo de nuevo.';
-                errorEl.hidden = false;
-                confirmarEl.disabled = false;
+                mostrarError('No hemos podido conectar. Inténtalo de nuevo.');
+                reiniciarVerificacion();
             });
         });
 
         document.getElementById('vot-cancelar').addEventListener('click', cerrarModal);
         modalEl.addEventListener('click', function(e) { if (e.target === modalEl) cerrarModal(); });
-        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') cerrarModal(); });
+        document.addEventListener('keydown', function(e) {
+            if (modalEl.hidden) return;   // fuera del modal, Escape no toca nada
+            if (e.key === 'Escape') cerrarModal();
+            else if (e.key === 'Tab') atraparTab(e);
+        });
 
         // --- Arranque ------------------------------------------------------
-        fetch(API_BASE + '/api/status', { credentials: 'include' })
-            .then(function(r) { return r.json(); })
-            .then(function(s) { estado = s; })
-            .catch(function() { estado = null; })
-            .then(function() { return fetch('obras.json'); })
-            .then(function(r) { return r.json(); })
+        refrescarEstado()
+            .then(function() { return fetchConPlazo('obras.json', {}, ESPERA_RED); })
+            .then(function(r) {
+                if (!r.ok) throw new Error('galería no disponible');
+                return r.json();
+            })
             .then(pintarGaleria)
             .catch(function() {
                 estadoEl.textContent = 'No hemos podido cargar la galería.';
             });
+
+        // La ventana de votación se abre y se cierra sola: una página dejada
+        // abierta debe enterarse sin recargar.
+        function refrescoPeriodico() {
+            if (document.hidden || !modalEl.hidden) return;
+            if (yaVotadoLocal() || (estado && estado.has_voted)) return;
+            refrescarEstado();
+        }
+        setInterval(refrescoPeriodico, REFRESCO_ESTADO);
+        document.addEventListener('visibilitychange', refrescoPeriodico);
     </script>
 
 </body>

@@ -13,6 +13,10 @@ DESTINO="$RAIZ/concurso/obras"
 MANIFIESTO="$RAIZ/concurso/obras.json"
 TOTAL=22
 
+# Si el script muere a medias (foto corrupta, Ctrl-C), el temporal no se queda
+# suelto en concurso/. En el camino bueno el mv ya se lo ha llevado.
+trap 'rm -f "$MANIFIESTO.tmp"' EXIT
+
 if ! command -v magick >/dev/null && ! command -v convert >/dev/null; then
   echo "Falta ImageMagick. Instálalo con: sudo apt install imagemagick webp" >&2
   exit 1

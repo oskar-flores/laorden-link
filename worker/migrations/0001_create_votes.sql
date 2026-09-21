@@ -15,6 +15,8 @@ CREATE TABLE votes (
 );
 
 CREATE UNIQUE INDEX idx_votes_voter ON votes(voter_id)    WHERE status = 'valid';
-CREATE UNIQUE INDEX idx_votes_fp    ON votes(fingerprint) WHERE status = 'valid';
+-- La huella vacía (CDN bloqueado por el navegador) no identifica a nadie: si
+-- entrase en el índice, el primer votante sin huella bloquearía a todos los demás.
+CREATE UNIQUE INDEX idx_votes_fp    ON votes(fingerprint) WHERE status = 'valid' AND fingerprint != '';
 CREATE INDEX        idx_votes_ip    ON votes(ip_hash);
 CREATE INDEX        idx_votes_time  ON votes(created_at);

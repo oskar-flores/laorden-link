@@ -60,8 +60,10 @@ export async function handleVote(request, env) {
   if (!isValidMiniCode(body.mini_code, env.MINI_COUNT)) {
     return json(400, false, MSG.badCode);
   }
+  // La huella puede venir vacía: su CDN está bloqueado por defecto en Firefox
+  // con ETP estricta y en uBlock Origin. A ese votante se le deduplica solo por
+  // la cookie voter_id (§8), que es la señal principal.
   const fingerprint = typeof body.fingerprint === 'string' ? body.fingerprint.slice(0, 128) : '';
-  if (!fingerprint) return json(400, false, MSG.badCode);
 
   const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
 
@@ -87,8 +89,9 @@ export async function handleVote(request, env) {
   //    de huella en dispositivos idénticos, §8).
   const dupe = await env.DB
     .prepare(`SELECT 1 AS found FROM votes
-              WHERE status = 'valid' AND (voter_id = ? OR fingerprint = ?) LIMIT 1`)
-    .bind(voterId, fingerprint).first();
+              WHERE status = 'valid'
+                AND (voter_id = ? OR (? != '' AND fingerprint = ?)) LIMIT 1`)
+    .bind(voterId, fingerprint, fingerprint).first();
   if (dupe) return json(409, false, MSG.duplicate, setCookie);
 
   // 7. Inserción. Los índices únicos parciales son la garantía real frente

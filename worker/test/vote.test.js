@@ -88,6 +88,48 @@ describe('POST /api/vote', () => {
     expect(results).toHaveLength(1);
   });
 
+  it('acepta un voto sin huella — el bloqueador mató el CDN de FingerprintJS', async () => {
+    mockTurnstile(true);
+    const res = await vote({ ...VALIDO, fingerprint: '' });
+    expect(res.status).toBe(200);
+    expect((await res.json()).message).toBe('¡Gracias! Tu voto se ha registrado.');
+
+    const { results } = await env.DB.prepare('SELECT * FROM votes').all();
+    expect(results).toHaveLength(1);
+    expect(results[0].fingerprint).toBe('');
+  });
+
+  it('dos votantes distintos sin huella votan los dos (el índice único la excluye)', async () => {
+    // La prueba que cuenta: si idx_votes_fp no excluyese la huella vacía, el
+    // primer votante con el CDN bloqueado dejaría fuera a todos los demás.
+    mockTurnstile(true);
+    const uno = await vote({ ...VALIDO, fingerprint: '' }, { cookie: 'voter_id=votante-uno' });
+    expect(uno.status).toBe(200);
+
+    mockTurnstile(true);
+    const dos = await vote({ ...VALIDO, mini_code: '12', fingerprint: '' },
+                           { cookie: 'voter_id=votante-dos' });
+    expect(dos.status).toBe(200);
+    expect((await dos.json()).message).toBe('¡Gracias! Tu voto se ha registrado.');
+
+    const { results } = await env.DB.prepare("SELECT * FROM votes WHERE status='valid'").all();
+    expect(results).toHaveLength(2);
+    expect(results.map((r) => r.voter_id).sort()).toEqual(['votante-dos', 'votante-uno']);
+  });
+
+  it('sigue rechazando un segundo voto sin huella con la misma cookie (409)', async () => {
+    mockTurnstile(true);
+    const uno = await vote({ ...VALIDO, fingerprint: '' }, { cookie: 'voter_id=votante-uno' });
+    expect(uno.status).toBe(200);
+
+    mockTurnstile(true);
+    const dos = await vote({ ...VALIDO, fingerprint: '' }, { cookie: 'voter_id=votante-uno' });
+    expect(dos.status).toBe(409);
+
+    const { results } = await env.DB.prepare("SELECT * FROM votes WHERE status='valid'").all();
+    expect(results).toHaveLength(1);
+  });
+
   it('rechaza antes de la apertura (403)', async () => {
     const res = await vote(VALIDO, { now: ANTES });
     expect(res.status).toBe(403);
