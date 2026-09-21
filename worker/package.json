@@ -5,7 +5,7 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --assets .. --persist-to /tmp/laorden-wrangler-state",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {
