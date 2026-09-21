@@ -45,14 +45,26 @@ async function seed(rows) {
 
 /**
  * Publica el JWKS de pruebas en el endpoint que consulta lib/access.js.
- * jose cachea el resultado en memoria (jwksCache en access.js, ~10 min), así
- * que solo la primera verificación de un JWT bien formado de esta suite
- * dispara la petición real; las siguientes reutilizan la caché en caliente.
- * Se usa .persist() para no depender de ese supuesto: si alguna otra prueba
- * disparase una segunda petición, también se serviría en vez de fallar por
- * "no matching interceptor".
+ *
+ * Cada prueba que verifica un JWT real debe llamar a esto ella misma, al
+ * principio: si solo se registrase en una prueba (p. ej. la del JWT válido),
+ * ejecutar cualquier otra en solitario con `vitest -t` la dejaría sin mock,
+ * `disableNetConnect()` bloquearía la petición, jwtVerify fallaría al
+ * resolver la clave —no al comprobar audiencia/issuer/firma/caducidad— y el
+ * 403 resultante no probaría nada (así se descubrió en el round 2/5).
+ *
+ * jose cachea el JWKS en memoria por proceso (jwksCache en access.js, ~10
+ * min): dentro de una misma ejecución, solo la primera prueba que de verdad
+ * necesita resolver una clave dispara la petición; las siguientes reutilizan
+ * la caché en caliente y nunca llegan a esta función. El guardián `yaMockeado`
+ * evita registrar un segundo interceptor persistido que nunca se consumiría
+ * y quedaría pendiente para siempre; `.persist()` cubre el caso contrario
+ * (una prueba sí necesita una segunda petición real).
  */
+let yaMockeado = false;
 function mockJwks() {
+  if (yaMockeado) return;
+  yaMockeado = true;
   fetchMock
     .get(`https://${TEAM_DOMAIN}`)
     .intercept({ path: '/cdn-cgi/access/certs', method: 'GET' })
@@ -140,18 +152,21 @@ describe('GET /admin/results', () => {
   });
 
   it('deniega un JWT con audiencia incorrecta (403) — el aud sí se comprueba', async () => {
+    mockJwks(); // autosuficiente: debe pasar también con `vitest -t`, en solitario
     const token = await firmar({ audience: 'otra-audiencia' });
     const res = await conToken(token);
     expect(res.status).toBe(403);
   });
 
   it('deniega un JWT con emisor incorrecto (403)', async () => {
+    mockJwks();
     const token = await firmar({ issuer: 'https://otro-equipo.cloudflareaccess.com' });
     const res = await conToken(token);
     expect(res.status).toBe(403);
   });
 
   it('deniega un JWT con firma inválida aunque el kid sea el correcto (403)', async () => {
+    mockJwks();
     // Mismo kid que la clave publicada, pero firmado con una clave distinta:
     // comprueba que se valida la firma criptográfica, no solo el kid.
     const token = await firmar({ clave: claveIntrusa.privateKey });
@@ -160,6 +175,7 @@ describe('GET /admin/results', () => {
   });
 
   it('deniega un JWT caducado (403)', async () => {
+    mockJwks();
     const yaExpirado = Math.floor(Date.now() / 1000) - 3600;
     const token = await firmar({ exp: yaExpirado });
     const res = await conToken(token);
