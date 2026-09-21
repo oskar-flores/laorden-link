@@ -15,7 +15,12 @@ export default defineWorkersConfig({
             TEST_MIGRATIONS: migrations,
             IP_SALT: 'sal-de-pruebas',
             TURNSTILE_SECRET: 'secreto-de-pruebas',
-            ALLOW_TEST_CLOCK: 'yes'
+            ALLOW_TEST_CLOCK: 'yes',
+            // Con valores no vacíos, verifyAccessJwt ya no corta en la guarda
+            // de "no configurado" y admin.test.js puede ejercer de verdad
+            // jwtVerify, la comprobación de issuer/audience y el catch.
+            ACCESS_TEAM_DOMAIN: 'equipo-de-pruebas.cloudflareaccess.com',
+            ACCESS_AUD: 'aud-de-pruebas'
           }
         }
       }
