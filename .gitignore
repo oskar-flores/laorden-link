@@ -8,3 +8,6 @@ docs/superpowers/
 # Tooling de agentes (instalado localmente, no es del proyecto)
 .agents/
 skills-lock.json
+
+# Fotos originales del concurso (pesadas, no se publican)
+fotos-originales/
