@@ -1,4 +1,5 @@
 import { handleStatus } from './routes/status.js';
+import { handleVote } from './routes/vote.js';
 import { withCors, handlePreflight } from './lib/cors.js';
 
 export default {
@@ -10,6 +11,8 @@ export default {
     let response;
     if (pathname === '/api/status' && request.method === 'GET') {
       response = await handleStatus(request, env);
+    } else if (pathname === '/api/vote' && request.method === 'POST') {
+      response = await handleVote(request, env);
     } else {
       response = new Response('No encontrado', { status: 404 });
     }

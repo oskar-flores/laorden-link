@@ -14,7 +14,8 @@ export default defineWorkersConfig({
           bindings: {
             TEST_MIGRATIONS: migrations,
             IP_SALT: 'sal-de-pruebas',
-            TURNSTILE_SECRET: 'secreto-de-pruebas'
+            TURNSTILE_SECRET: 'secreto-de-pruebas',
+            ALLOW_TEST_CLOCK: 'yes'
           }
         }
       }
