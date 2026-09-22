@@ -44,6 +44,29 @@ async function seed(rows) {
 }
 
 /**
+ * Fecha ISO a N minutos u horas en el pasado: `hace('4m')`, `hace('3h')`.
+ * Las banderas de tiempo (f_rafaga) dependen de la DISTANCIA entre el primer
+ * y el último voto de un origen, no del instante absoluto, así que sembrar
+ * relativo a ahora las hace deterministas.
+ */
+/**
+ * ¿Aparece esta bandera en alguna celda de la tabla de orígenes?
+ *
+ * El párrafo que encabeza la sección nombra las banderas para explicarlas,
+ * así que un `toContain('ráfaga')` sobre el cuerpo entero daría positivo
+ * siempre. Lo que importa es la celda de banderas de alguna fila.
+ */
+function tieneBandera(body, bandera) {
+  return new RegExp(`<td>[^<]*${bandera}[^<]*</td>`).test(body);
+}
+
+function hace(cuanto) {
+  const n = Number(cuanto.slice(0, -1));
+  const minutos = cuanto.endsWith('h') ? n * 60 : n;
+  return new Date(Date.now() - minutos * 60_000).toISOString();
+}
+
+/**
  * Publica el JWKS de pruebas en el endpoint que consulta lib/access.js.
  *
  * Cada prueba que verifica un JWT real debe llamar a esto ella misma, al
@@ -197,24 +220,27 @@ describe('GET /admin/results', () => {
   });
 
   it('marca f_volumen, f_datacenter y f_concentrado cuando los datos los disparan (G4)', async () => {
+    // Las fechas van separadas una hora: sin eso, sembrar todo en el mismo
+    // instante dispararía además f_rafaga y este test dejaría de probar cada
+    // bandera por separado.
     await seed([
       // f_volumen: más de 5 votos desde el mismo hash de IP, a obras distintas
       // (para no disparar también f_concentrado).
-      { mini_code: '01', voter_id: 'v-vol-1', fingerprint: 'f-vol-1', ip_hash: 'hash-volumen', asn_name: 'ISP Normal' },
-      { mini_code: '02', voter_id: 'v-vol-2', fingerprint: 'f-vol-2', ip_hash: 'hash-volumen', asn_name: 'ISP Normal' },
-      { mini_code: '03', voter_id: 'v-vol-3', fingerprint: 'f-vol-3', ip_hash: 'hash-volumen', asn_name: 'ISP Normal' },
-      { mini_code: '04', voter_id: 'v-vol-4', fingerprint: 'f-vol-4', ip_hash: 'hash-volumen', asn_name: 'ISP Normal' },
-      { mini_code: '05', voter_id: 'v-vol-5', fingerprint: 'f-vol-5', ip_hash: 'hash-volumen', asn_name: 'ISP Normal' },
-      { mini_code: '06', voter_id: 'v-vol-6', fingerprint: 'f-vol-6', ip_hash: 'hash-volumen', asn_name: 'ISP Normal' },
+      { mini_code: '01', voter_id: 'v-vol-1', fingerprint: 'f-vol-1', ip_hash: 'hash-volumen', asn_name: 'ISP Normal', created_at: hace(`1h`) },
+      { mini_code: '02', voter_id: 'v-vol-2', fingerprint: 'f-vol-2', ip_hash: 'hash-volumen', asn_name: 'ISP Normal', created_at: hace(`2h`) },
+      { mini_code: '03', voter_id: 'v-vol-3', fingerprint: 'f-vol-3', ip_hash: 'hash-volumen', asn_name: 'ISP Normal', created_at: hace(`3h`) },
+      { mini_code: '04', voter_id: 'v-vol-4', fingerprint: 'f-vol-4', ip_hash: 'hash-volumen', asn_name: 'ISP Normal', created_at: hace(`4h`) },
+      { mini_code: '05', voter_id: 'v-vol-5', fingerprint: 'f-vol-5', ip_hash: 'hash-volumen', asn_name: 'ISP Normal', created_at: hace(`5h`) },
+      { mini_code: '06', voter_id: 'v-vol-6', fingerprint: 'f-vol-6', ip_hash: 'hash-volumen', asn_name: 'ISP Normal', created_at: hace(`6h`) },
       // f_datacenter: el nombre de la red delata un proveedor cloud/hosting/VPN;
       // solo 2 votos, para no disparar también f_volumen ni f_concentrado.
       { mini_code: '07', voter_id: 'v-dc-1', fingerprint: 'f-dc-1', ip_hash: 'hash-datacenter', asn_name: 'Acme Cloud Hosting' },
       { mini_code: '08', voter_id: 'v-dc-2', fingerprint: 'f-dc-2', ip_hash: 'hash-datacenter', asn_name: 'Acme Cloud Hosting' },
       // f_concentrado: más de 3 votos, todos a la misma obra.
-      { mini_code: '09', voter_id: 'v-con-1', fingerprint: 'f-con-1', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal' },
-      { mini_code: '09', voter_id: 'v-con-2', fingerprint: 'f-con-2', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal' },
-      { mini_code: '09', voter_id: 'v-con-3', fingerprint: 'f-con-3', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal' },
-      { mini_code: '09', voter_id: 'v-con-4', fingerprint: 'f-con-4', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal' }
+      { mini_code: '09', voter_id: 'v-con-1', fingerprint: 'f-con-1', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal', created_at: hace(`1h`) },
+      { mini_code: '09', voter_id: 'v-con-2', fingerprint: 'f-con-2', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal', created_at: hace(`2h`) },
+      { mini_code: '09', voter_id: 'v-con-3', fingerprint: 'f-con-3', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal', created_at: hace(`3h`) },
+      { mini_code: '09', voter_id: 'v-con-4', fingerprint: 'f-con-4', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal', created_at: hace(`4h`) }
     ]);
 
     mockJwks();
@@ -227,6 +253,7 @@ describe('GET /admin/results', () => {
     expect(body).toContain('volumen');
     expect(body).toContain('datacenter');
     expect(body).toContain('concentrado');
+    expect(tieneBandera(body, 'ráfaga')).toBe(false);
   });
 
   it('lista los ids de cada origen marcado, que son los que pide el comando de anulación', async () => {
@@ -323,6 +350,91 @@ describe('GET /admin/results', () => {
     expect(body).toContain('<td>#07</td>');
     expect(body).toContain('<td>#12</td>');
     expect(body).not.toContain('<img');
+  });
+
+  it('marca f_rafaga: tres votos del mismo origen en minutos, aunque vayan a obras distintas', async () => {
+    // El caso real que destapó esta bandera: un iPhone votando con Safari,
+    // luego con Brave, luego en ventana privada, en menos de cinco minutos.
+    // La cookie y la huella son POR NAVEGADOR, así que no lo frenan, y las
+    // otras tres banderas no lo ven: 3 votos no llegan a f_volumen (>5) y,
+    // al ir a obras distintas, tampoco a f_concentrado.
+    await seed([
+      { mini_code: '10', voter_id: 'v-r-1', fingerprint: 'f-r-1', ip_hash: 'hash-rafaga', asn_name: 'ISP Normal', created_at: hace('5m') },
+      { mini_code: '06', voter_id: 'v-r-2', fingerprint: 'f-r-2', ip_hash: 'hash-rafaga', asn_name: 'ISP Normal', created_at: hace('3m') },
+      { mini_code: '07', voter_id: 'v-r-3', fingerprint: 'f-r-3', ip_hash: 'hash-rafaga', asn_name: 'ISP Normal', created_at: hace('1m') }
+    ]);
+
+    mockJwks();
+    const res = await conToken(await firmar());
+    expect(res.status).toBe(200);
+    const body = await res.text();
+
+    expect(tieneBandera(body, 'ráfaga')).toBe(true);
+    expect(tieneBandera(body, 'volumen')).toBe(false);
+    expect(tieneBandera(body, 'concentrado')).toBe(false);
+  });
+
+  it('NO marca f_rafaga cuando esos mismos tres votos están repartidos en horas (la familia)', async () => {
+    // Tres personas de la misma casa, mismo wifi, a lo largo de la tarde.
+    // Sale en la tabla porque repite origen, pero sin bandera: que la
+    // organización lo vea no es lo mismo que acusarla.
+    await seed([
+      { mini_code: '10', voter_id: 'v-f-1', fingerprint: 'f-f-1', ip_hash: 'hash-familia', asn_name: 'ISP Normal', created_at: hace('5h') },
+      { mini_code: '06', voter_id: 'v-f-2', fingerprint: 'f-f-2', ip_hash: 'hash-familia', asn_name: 'ISP Normal', created_at: hace('3h') },
+      { mini_code: '07', voter_id: 'v-f-3', fingerprint: 'f-f-3', ip_hash: 'hash-familia', asn_name: 'ISP Normal', created_at: hace('1h') }
+    ]);
+
+    mockJwks();
+    const res = await conToken(await firmar());
+    expect(res.status).toBe(200);
+    const body = await res.text();
+
+    expect(body).toContain('hash-familia');
+    expect(tieneBandera(body, 'ráfaga')).toBe(false);
+  });
+
+  it('lista un origen con dos votos y ninguna bandera, que antes no aparecía', async () => {
+    await seed([
+      { mini_code: '03', voter_id: 'v-d-1', fingerprint: 'f-d-1', ip_hash: 'hash-dosvotos', asn_name: 'ISP Normal', created_at: hace('4h') },
+      { mini_code: '11', voter_id: 'v-d-2', fingerprint: 'f-d-2', ip_hash: 'hash-dosvotos', asn_name: 'ISP Normal', created_at: hace('1h') }
+    ]);
+
+    mockJwks();
+    const res = await conToken(await firmar());
+    expect(res.status).toBe(200);
+    const body = await res.text();
+
+    expect(body).toContain('hash-dosvoto');
+    expect(body).not.toContain('Ningún origen repite voto');
+  });
+
+  it('no lista los orígenes de un solo voto: son la inmensa mayoría y ahogarían la tabla', async () => {
+    await seed([
+      { mini_code: '03', voter_id: 'v-s-1', fingerprint: 'f-s-1', ip_hash: 'hash-solitario', asn_name: 'ISP Normal' }
+    ]);
+
+    mockJwks();
+    const res = await conToken(await firmar());
+    expect(res.status).toBe(200);
+    const body = await res.text();
+
+    expect(body).toContain('#03');              // sí cuenta en el recuento
+    expect(body).not.toContain('hash-solitar'); // pero no en la tabla de orígenes
+    expect(body).toContain('Ningún origen repite voto');
+  });
+
+  it('sí lista un voto único si viene de datacenter: ahí el volumen no es la señal', async () => {
+    await seed([
+      { mini_code: '03', voter_id: 'v-dc', fingerprint: 'f-dc', ip_hash: 'hash-solocloud', asn_name: 'Acme Cloud Hosting' }
+    ]);
+
+    mockJwks();
+    const res = await conToken(await firmar());
+    expect(res.status).toBe(200);
+    const body = await res.text();
+
+    expect(body).toContain('hash-solocl');
+    expect(tieneBandera(body, 'datacenter')).toBe(true);
   });
 
   it('deniega incluso un JWT válido si ACCESS_TEAM_DOMAIN/ACCESS_AUD aún no están configurados', async () => {

@@ -8,6 +8,24 @@ export const TALLY = `
   SELECT mini_code, COUNT(*) AS c FROM votes
   WHERE status = 'valid' GROUP BY mini_code ORDER BY c DESC`;
 
+// Votos que caben en esta ventana, desde un mismo origen, para que cuente
+// como ráfaga. Una familia que vota desde el mismo wifi lo hace a lo largo de
+// la tarde; una sola persona cambiando de navegador (Safari, Brave, ventana
+// privada) lo hace en cuatro minutos, porque la cookie y la huella son POR
+// NAVEGADOR y no la frenan. Es la bandera que separa esos dos casos, y la
+// única que mira el tiempo.
+const RAFAGA_VOTOS = 3;
+const RAFAGA_MINUTOS = 10;
+
+// El HAVING lista TODOS los orígenes con más de un voto, no solo los
+// marcados: tres votos a tres obras distintas desde el mismo móvil no
+// disparan ninguna bandera y siguen siendo tres votos de una persona. La
+// bandera ordena la revisión, no es la condición para aparecer. Un voto único
+// desde datacenter sí entra, porque ahí el volumen no es la señal.
+//
+// Sin comentarios ni ';' dentro de la plantilla, a propósito: esta consulta se
+// pega a mano en `wrangler d1 execute`, que la aplana en una línea y la parte
+// por los ';'. Un comentario ahí dentro se tragaría el HAVING sin dar error.
 export const RISK = `
   SELECT ip_hash, asn_name, COUNT(*) AS votos,
          COUNT(DISTINCT mini_code) AS obras_distintas,
@@ -16,11 +34,15 @@ export const RISK = `
          (COUNT(*) > 5)                                   AS f_volumen,
          (asn_name LIKE '%Hosting%' OR asn_name LIKE '%Cloud%'
           OR asn_name LIKE '%VPN%')                       AS f_datacenter,
-         (COUNT(*) > 3 AND COUNT(DISTINCT mini_code) = 1) AS f_concentrado
+         (COUNT(*) > 3 AND COUNT(DISTINCT mini_code) = 1) AS f_concentrado,
+         (COUNT(*) >= ${RAFAGA_VOTOS} AND
+          (julianday(MAX(created_at)) - julianday(MIN(created_at))) * 1440
+            < ${RAFAGA_MINUTOS})                          AS f_rafaga
   FROM votes WHERE status = 'valid'
   GROUP BY ip_hash, asn_name
-  HAVING f_volumen OR f_datacenter OR f_concentrado
-  ORDER BY votos DESC`;
+  HAVING votos > 1 OR f_datacenter
+  ORDER BY (f_volumen OR f_datacenter OR f_concentrado OR f_rafaga) DESC,
+           votos DESC, ultimo DESC`;
 
 /**
  * Construye, a partir del manifiesto de obras.json ya parseado, un índice
@@ -50,8 +72,9 @@ export function page(totals, tally, risk, email, obras = new Map()) {
   const banderas = (r) => [
     r.f_volumen ? 'volumen' : null,
     r.f_datacenter ? 'datacenter' : null,
-    r.f_concentrado ? 'concentrado' : null
-  ].filter(Boolean).join(', ');
+    r.f_concentrado ? 'concentrado' : null,
+    r.f_rafaga ? 'ráfaga' : null
+  ].filter(Boolean).join(', ') || '—';
 
   const miniatura = (r) => {
     const obra = obras.get(String(r.mini_code));
@@ -84,8 +107,13 @@ export function page(totals, tally, risk, email, obras = new Map()) {
 ${tally.map((r) => `<tr><td>#${esc(r.mini_code)}${miniatura(r)}</td><td>${r.c}</td></tr>`).join('')}
 </table>
 
-<h2>Actividad sospechosa</h2>
-${risk.length === 0 ? '<p class="aviso">Ningún origen marcado.</p>' : `
+<h2>Orígenes con más de un voto</h2>
+<p class="aviso">Aparecen todos, marcados o no. Una bandera dice qué mirar
+primero, no que haya fraude: dos votos del mismo wifi suelen ser dos personas
+de la misma casa. <strong>ráfaga</strong> es la más discriminante — varios
+votos seguidos en minutos desde un mismo origen es lo que hace una sola
+persona cambiando de navegador.</p>
+${risk.length === 0 ? '<p class="aviso">Ningún origen repite voto.</p>' : `
 <table><tr><th>Hash IP</th><th>Red</th><th>Votos</th><th>Obras</th><th>Primero</th><th>Último</th><th>Banderas</th><th>IDs</th></tr>
 ${risk.map((r) => `<tr>
   <td><code>${esc(String(r.ip_hash).slice(0, 12))}…</code></td>
