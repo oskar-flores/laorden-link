@@ -22,12 +22,43 @@ export const RISK = `
   HAVING f_volumen OR f_datacenter OR f_concentrado
   ORDER BY votos DESC`;
 
-export function page(totals, tally, risk, email) {
+/**
+ * Construye, a partir del manifiesto de obras.json ya parseado, un índice
+ * `code -> { img, thumb }` con las URLs de imagen resueltas contra `baseUrl`.
+ *
+ * Pura y sin E/S: quien llama decide de dónde viene el manifiesto (el
+ * `fetch` del Worker, o la lectura de fichero de ver-resultados-local.mjs) y
+ * qué `baseUrl` usar. Las rutas de dentro de obras.json son relativas a
+ * `/concurso/` (p. ej. "obras/07.webp"), así que `baseUrl` debe apuntar a
+ * "algo/concurso/obras.json" (real o file://) para que `new URL(...)` las
+ * resuelva al sitio correcto.
+ */
+export function buildObrasIndex(lista, baseUrl) {
+  const indice = new Map();
+  if (!Array.isArray(lista)) return indice;
+  for (const obra of lista) {
+    if (!obra || obra.code == null) continue;
+    const entrada = {};
+    if (obra.img) entrada.img = new URL(obra.img, baseUrl).href;
+    if (obra.thumb) entrada.thumb = new URL(obra.thumb, baseUrl).href;
+    indice.set(String(obra.code), entrada);
+  }
+  return indice;
+}
+
+export function page(totals, tally, risk, email, obras = new Map()) {
   const banderas = (r) => [
     r.f_volumen ? 'volumen' : null,
     r.f_datacenter ? 'datacenter' : null,
     r.f_concentrado ? 'concentrado' : null
   ].filter(Boolean).join(', ');
+
+  const miniatura = (r) => {
+    const obra = obras.get(String(r.mini_code));
+    if (!obra || !obra.img) return '';
+    const thumb = obra.thumb || obra.img;
+    return `<br><a href="${esc(obra.img)}"><img class="miniatura" src="${esc(thumb)}" alt="Obra ${esc(r.mini_code)}" loading="lazy"></a>`;
+  };
 
   return `<!DOCTYPE html>
 <html lang="es"><head><meta charset="UTF-8">
@@ -42,13 +73,15 @@ export function page(totals, tally, risk, email) {
   th { color:#8A7560; font-weight:500; }
   .aviso { color:#8A7560; font-size:0.9em; max-width:60ch; }
   code { background:rgba(255,255,255,0.05); padding:2px 5px; }
+  .miniatura { max-width:120px; max-height:120px; width:auto; height:auto;
+               display:block; margin-top:4px; border-radius:4px; }
 </style></head><body>
 <h1>Resultados I Concurso de Pintura</h1>
 <p class="aviso">Sesión: ${esc(email)} · Votos válidos: <strong>${totals}</strong></p>
 
 <h2>Recuento</h2>
 <table><tr><th>Obra</th><th>Votos</th></tr>
-${tally.map((r) => `<tr><td>#${esc(r.mini_code)}</td><td>${r.c}</td></tr>`).join('')}
+${tally.map((r) => `<tr><td>#${esc(r.mini_code)}${miniatura(r)}</td><td>${r.c}</td></tr>`).join('')}
 </table>
 
 <h2>Actividad sospechosa</h2>
@@ -66,6 +99,34 @@ ${risk.map((r) => `<tr>
 </body></html>`;
 }
 
+/**
+ * Lee concurso/obras.json para saber qué obras tienen foto. Si la petición
+ * falla o el fichero no es el esperado, se devuelve un índice vacío: el
+ * recuento tiene que salir igual, solo que sin miniaturas (ver brief de la
+ * Tarea 3). Se resuelve contra `request.url` para que funcione tanto en
+ * producción (GitHub Pages) como en `wrangler dev` (--assets).
+ */
+async function cargarObras(request) {
+  try {
+    const manifiestoUrl = new URL('/concurso/obras.json', request.url);
+    const res = await fetch(manifiestoUrl);
+    if (!res.ok) return new Map();
+    const lista = await res.json();
+    const indice = buildObrasIndex(lista, manifiestoUrl);
+    // buildObrasIndex() resuelve contra manifiestoUrl y devuelve URLs
+    // absolutas (con esquema y host). En el Worker interesa la ruta relativa
+    // al sitio ("/concurso/obras/07.webp"), no repetir el host: así la
+    // página se ve igual en producción (www.laorden.org) y en wrangler dev.
+    for (const entrada of indice.values()) {
+      if (entrada.img) entrada.img = new URL(entrada.img).pathname;
+      if (entrada.thumb) entrada.thumb = new URL(entrada.thumb).pathname;
+    }
+    return indice;
+  } catch {
+    return new Map();
+  }
+}
+
 export async function handleAdminResults(request, env) {
   const auth = await verifyAccessJwt(request, env);
   if (!auth.ok) {
@@ -75,13 +136,14 @@ export async function handleAdminResults(request, env) {
     });
   }
 
-  const [tally, risk, totals] = await Promise.all([
+  const [tally, risk, totals, obras] = await Promise.all([
     env.DB.prepare(TALLY).all(),
     env.DB.prepare(RISK).all(),
-    env.DB.prepare("SELECT COUNT(*) AS n FROM votes WHERE status = 'valid'").first()
+    env.DB.prepare("SELECT COUNT(*) AS n FROM votes WHERE status = 'valid'").first(),
+    cargarObras(request)
   ]);
 
-  return new Response(page(totals.n, tally.results, risk.results, auth.email), {
+  return new Response(page(totals.n, tally.results, risk.results, auth.email, obras), {
     headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }
   });
 }

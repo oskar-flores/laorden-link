@@ -3,10 +3,25 @@
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { page, TALLY, RISK } from '../worker/src/routes/admin.js';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { page, TALLY, RISK, buildObrasIndex } from '../worker/src/routes/admin.js';
 
 const raiz = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+// Igual que en el Worker: se lee concurso/obras.json para saber qué obras
+// tienen foto, pero aquí con rutas file:// absolutas al repo (derivadas de
+// import.meta.url), no /concurso/..., porque este HTML se abre desde /tmp
+// con file:// y no hay servidor delante que resuelva esa ruta absoluta.
+// Si el manifiesto no está o no se puede leer, se sigue sin miniaturas —
+// mismo comportamiento que un fetch fallido en el Worker.
+let obras = new Map();
+try {
+  const manifiestoUrl = pathToFileURL(join(raiz, 'concurso/obras.json'));
+  const lista = JSON.parse(readFileSync(manifiestoUrl, 'utf8'));
+  obras = buildObrasIndex(lista, manifiestoUrl);
+} catch {
+  // sin manifiesto legible: la página sale igual, sin miniaturas.
+}
 const db = new DatabaseSync(':memory:');
 db.exec(readFileSync(join(raiz, 'worker/migrations/0001_create_votes.sql'), 'utf8'));
 
@@ -38,4 +53,4 @@ const tally = db.prepare(TALLY).all();
 const risk = db.prepare(RISK).all();
 const totals = db.prepare("SELECT COUNT(*) AS n FROM votes WHERE status = 'valid'").get().n;
 
-process.stdout.write(page(totals, tally, risk, 'ejemplo@laorden.org'));
+process.stdout.write(page(totals, tally, risk, 'ejemplo@laorden.org', obras));

@@ -95,6 +95,20 @@ function conToken(token) {
   });
 }
 
+/**
+ * Registra el manifiesto de obras.json que servirá `cargarObras` en
+ * admin.js. No usa `.persist()`: cada prueba de la Tarea 3 hace como mucho
+ * una petición de resultados, así que un interceptor de un solo uso basta y
+ * `fetchMock.assertNoPendingInterceptors()` (si se usara) lo notaría si
+ * sobrase alguno.
+ */
+function mockObras(lista) {
+  fetchMock
+    .get('https://www.laorden.org')
+    .intercept({ path: '/concurso/obras.json', method: 'GET' })
+    .reply(200, lista);
+}
+
 describe('GET /admin/results', () => {
   it('deniega el acceso sin cabecera de Access', async () => {
     const res = await SELF.fetch('https://www.laorden.org/admin/results');
@@ -237,6 +251,78 @@ describe('GET /admin/results', () => {
     expect(fila.ids).toMatch(/^\d+(,\d+)*$/);
     expect(body).toContain('<th>IDs</th>');
     expect(body).toContain(fila.ids);
+  });
+
+  it('una obra con img en obras.json sale con miniatura enlazada a la imagen grande (T3)', async () => {
+    mockJwks();
+    mockObras([{ code: '07', img: 'obras/07.webp', thumb: 'obras/07-thumb.webp' }]);
+    await seed([{ mini_code: '07', voter_id: 'v1', fingerprint: 'f1', ip_hash: 'h1' }]);
+
+    const res = await conToken(await firmar());
+    expect(res.status).toBe(200);
+    const body = await res.text();
+
+    // El manifiesto trae rutas relativas a /concurso/; cargarObras debe
+    // resolverlas contra ese prefijo, no dejarlas tal cual ni añadir /concurso/
+    // dos veces.
+    expect(body).toContain('<a href="/concurso/obras/07.webp">');
+    expect(body).toContain(
+      '<img class="miniatura" src="/concurso/obras/07-thumb.webp" alt="Obra 07" loading="lazy">'
+    );
+  });
+
+  it('escapa el href y el alt de la miniatura con esc() (T3)', async () => {
+    mockJwks();
+    // Un código con comillas y `<script>` no debería nunca llegar así desde
+    // la votación real, pero mini_code es un TEXT sin más restricción en la
+    // base: si algo lo colase, la página no puede reproducirlo tal cual.
+    const codigoRaro = '07"><script>x</script>';
+    mockObras([{ code: codigoRaro, img: 'obras/raro.webp' }]);
+    await seed([{ mini_code: codigoRaro, voter_id: 'v1', fingerprint: 'f1', ip_hash: 'h1' }]);
+
+    const res = await conToken(await firmar());
+    expect(res.status).toBe(200);
+    const body = await res.text();
+
+    expect(body).not.toContain('<script>x</script>');
+    expect(body).toContain('&lt;script&gt;x&lt;/script&gt;');
+    expect(body).toContain('&quot;');
+  });
+
+  it('una obra sin img en obras.json queda como texto plano, sin imagen rota (T3)', async () => {
+    mockJwks();
+    // 08 no tiene "img" en el manifiesto, como las 22 obras de hoy en
+    // concurso/obras.json hasta que lleguen las fotos.
+    mockObras([{ code: '08' }]);
+    await seed([{ mini_code: '08', voter_id: 'v1', fingerprint: 'f1', ip_hash: 'h1' }]);
+
+    const res = await conToken(await firmar());
+    expect(res.status).toBe(200);
+    const body = await res.text();
+
+    expect(body).toContain('<td>#08</td>');
+    expect(body).not.toContain('<img');
+    expect(body).not.toContain('<a href');
+  });
+
+  it('si el fetch de obras.json falla, la tabla de recuento sigue apareciendo entera (T3)', async () => {
+    mockJwks();
+    // A propósito, NO se registra ningún interceptor para /concurso/obras.json:
+    // con fetchMock.disableNetConnect() activo, ese fetch lanza, y cargarObras
+    // debe atraparlo y devolver un índice vacío sin tumbar la página.
+    await seed([
+      { mini_code: '07', voter_id: 'v1', fingerprint: 'f1', ip_hash: 'h1' },
+      { mini_code: '12', voter_id: 'v2', fingerprint: 'f2', ip_hash: 'h2' }
+    ]);
+
+    const res = await conToken(await firmar());
+    expect(res.status).toBe(200);
+    const body = await res.text();
+
+    expect(body).toContain('Recuento');
+    expect(body).toContain('<td>#07</td>');
+    expect(body).toContain('<td>#12</td>');
+    expect(body).not.toContain('<img');
   });
 
   it('deniega incluso un JWT válido si ACCESS_TEAM_DOMAIN/ACCESS_AUD aún no están configurados', async () => {
