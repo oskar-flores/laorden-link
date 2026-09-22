@@ -182,6 +182,39 @@ describe('GET /admin/results', () => {
     expect(res.status).toBe(403);
   });
 
+  it('marca f_volumen, f_datacenter y f_concentrado cuando los datos los disparan (G4)', async () => {
+    await seed([
+      // f_volumen: más de 5 votos desde el mismo hash de IP, a obras distintas
+      // (para no disparar también f_concentrado).
+      { mini_code: '01', voter_id: 'v-vol-1', fingerprint: 'f-vol-1', ip_hash: 'hash-volumen', asn_name: 'ISP Normal' },
+      { mini_code: '02', voter_id: 'v-vol-2', fingerprint: 'f-vol-2', ip_hash: 'hash-volumen', asn_name: 'ISP Normal' },
+      { mini_code: '03', voter_id: 'v-vol-3', fingerprint: 'f-vol-3', ip_hash: 'hash-volumen', asn_name: 'ISP Normal' },
+      { mini_code: '04', voter_id: 'v-vol-4', fingerprint: 'f-vol-4', ip_hash: 'hash-volumen', asn_name: 'ISP Normal' },
+      { mini_code: '05', voter_id: 'v-vol-5', fingerprint: 'f-vol-5', ip_hash: 'hash-volumen', asn_name: 'ISP Normal' },
+      { mini_code: '06', voter_id: 'v-vol-6', fingerprint: 'f-vol-6', ip_hash: 'hash-volumen', asn_name: 'ISP Normal' },
+      // f_datacenter: el nombre de la red delata un proveedor cloud/hosting/VPN;
+      // solo 2 votos, para no disparar también f_volumen ni f_concentrado.
+      { mini_code: '07', voter_id: 'v-dc-1', fingerprint: 'f-dc-1', ip_hash: 'hash-datacenter', asn_name: 'Acme Cloud Hosting' },
+      { mini_code: '08', voter_id: 'v-dc-2', fingerprint: 'f-dc-2', ip_hash: 'hash-datacenter', asn_name: 'Acme Cloud Hosting' },
+      // f_concentrado: más de 3 votos, todos a la misma obra.
+      { mini_code: '09', voter_id: 'v-con-1', fingerprint: 'f-con-1', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal' },
+      { mini_code: '09', voter_id: 'v-con-2', fingerprint: 'f-con-2', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal' },
+      { mini_code: '09', voter_id: 'v-con-3', fingerprint: 'f-con-3', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal' },
+      { mini_code: '09', voter_id: 'v-con-4', fingerprint: 'f-con-4', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal' }
+    ]);
+
+    mockJwks();
+    const token = await firmar();
+    const res = await conToken(token);
+    expect(res.status).toBe(200);
+    const body = await res.text();
+
+    expect(body).not.toContain('Ningún origen marcado');
+    expect(body).toContain('volumen');
+    expect(body).toContain('datacenter');
+    expect(body).toContain('concentrado');
+  });
+
   it('deniega incluso un JWT válido si ACCESS_TEAM_DOMAIN/ACCESS_AUD aún no están configurados', async () => {
     // Cubre el estado real de wrangler.toml hoy (cadenas vacías, se rellenan
     // en la Tarea 6): la guarda de verifyAccessJwt debe cortar en seco antes
