@@ -326,6 +326,50 @@
             try { localStorage.setItem('laorden_voto', 'si'); } catch (e) {}
         }
 
+        /**
+         * Genera un identificador de respaldo opaco (no una huella real: no
+         * identifica el dispositivo, solo evita que este navegador cuente dos
+         * veces). No revela nada sobre a qué obra se votó.
+         */
+        function generarIdRespaldo() {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                return window.crypto.randomUUID();
+            }
+            if (window.crypto && typeof window.crypto.getRandomValues === 'function') {
+                var bytes = new Uint8Array(16);
+                window.crypto.getRandomValues(bytes);
+                var hex = '';
+                for (var i = 0; i < bytes.length; i++) {
+                    hex += ('0' + bytes[i].toString(16)).slice(-2);
+                }
+                return hex;
+            }
+            // Último recurso: no hace falta que resista a un atacante, solo que
+            // no colisione entre navegadores distintos.
+            return 'resp-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+        }
+
+        /**
+         * Id de respaldo estable por navegador (§G3). Se genera y se guarda en
+         * localStorage la primera vez, ANTES de que salga la petición de voto:
+         * así sobrevive aunque la respuesta del servidor (y su cookie
+         * voter_id) se pierda por el camino, que es justo el caso que la
+         * cookie no puede cubrir. Se usa solo cuando FingerprintJS no está
+         * disponible o no responde a tiempo — con huella real, esta función
+         * no se llega a usar.
+         */
+        function idRespaldo() {
+            try {
+                var guardado = localStorage.getItem('laorden_id_respaldo');
+                if (guardado) return guardado;
+                var nuevo = generarIdRespaldo();
+                localStorage.setItem('laorden_id_respaldo', nuevo);
+                return nuevo;
+            } catch (e) {
+                return '';   // modo privado u otro fallo: se vota igual, sin respaldo
+            }
+        }
+
         function mostrarError(texto) {
             errorEl.textContent = texto;
             errorEl.hidden = false;
@@ -545,9 +589,14 @@
                 function terminar(valor) {
                     if (resuelta) return;
                     resuelta = true;
-                    resolve(valor);
+                    // Sin veredicto real de FingerprintJS (plazo agotado, CDN
+                    // bloqueado, error), se manda el id de respaldo en su
+                    // lugar: menos preciso que una huella, pero estable en
+                    // este navegador (§G3), a diferencia de la cookie que
+                    // puede perderse con la respuesta.
+                    resolve(valor || idRespaldo());
                 }
-                // Sin huella se vota igual: el servidor deduplica por cookie.
+                // Si no hay veredicto a tiempo, terminar() añade el respaldo.
                 setTimeout(function() { terminar(''); }, ESPERA_HUELLA);
 
                 var s = document.createElement('script');
