@@ -1,5 +1,10 @@
 import { env, applyD1Migrations, SELF, fetchMock } from 'cloudflare:test';
 import { describe, it, expect, beforeAll, afterEach, beforeEach } from 'vitest';
+import { handleVote } from '../src/routes/vote.js';
+import { hashIp } from '../src/lib/crypto.js';
+
+// Debe coincidir con IP_SALT en vitest.config.js.
+const IP_SALT_DE_PRUEBAS = 'sal-de-pruebas';
 
 beforeAll(async () => {
   await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
@@ -38,6 +43,31 @@ function vote(body, { cookie, ip = '81.0.0.1', now = DURANTE } = {}) {
 }
 
 const VALIDO = { mini_code: '07', fingerprint: 'huella-a', turnstile_token: 'tok' };
+
+/** Petición cruda, para llamar a handleVote directamente con un env alterado. */
+function peticionVoto(body, { cookie, ip = '81.0.0.1', now = DURANTE } = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'CF-Connecting-IP': ip,
+    'X-Test-Now': now.toISOString()
+  };
+  if (cookie) headers.Cookie = cookie;
+  return new Request('https://www.laorden.org/api/vote', {
+    method: 'POST', headers, body: JSON.stringify(body)
+  });
+}
+
+/** Inserta filas de votos directamente, sin pasar por /api/vote. */
+async function seedVotes(rows) {
+  const stmt = env.DB.prepare(
+    `INSERT INTO votes (mini_code, voter_id, fingerprint, ip_hash, created_at, status)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  );
+  await env.DB.batch(rows.map((r) => stmt.bind(
+    r.mini_code || '07', r.voter_id, r.fingerprint, r.ip_hash,
+    r.created_at || new Date().toISOString(), r.status || 'valid'
+  )));
+}
 
 describe('POST /api/vote', () => {
   it('registra un voto válido dentro de la ventana', async () => {
@@ -191,16 +221,54 @@ describe('POST /api/vote', () => {
     expect(results).toHaveLength(1);
   });
 
-  it('corta por abuso a partir de 20 votos del mismo hash de IP (429)', async () => {
-    for (let i = 0; i < 20; i++) {
-      mockTurnstile(true);
-      const r = await vote({ ...VALIDO, fingerprint: `huella-${i}` }, { ip: '81.0.0.9' });
-      expect(r.status).toBe(200);
+  it('ya no corta a un votante 21 de la misma IP — el CGNAT de una operadora no debe bloquear', async () => {
+    // El límite antiguo (20) haría esto un 429; con el nuevo (200) un puñado
+    // de votantes legítimos detrás del mismo CGNAT vota sin problema.
+    const ip = '81.0.0.9';
+    const ipHash = await hashIp(ip, IP_SALT_DE_PRUEBAS);
+    const filas = [];
+    for (let i = 0; i < 50; i++) {
+      filas.push({ voter_id: `votante-cgnat-${i}`, fingerprint: `huella-cgnat-${i}`, ip_hash: ipHash });
     }
+    await seedVotes(filas);
+
     mockTurnstile(true);
-    const res = await vote({ ...VALIDO, fingerprint: 'huella-21' }, { ip: '81.0.0.9' });
+    const res = await vote({ ...VALIDO, fingerprint: 'huella-cgnat-51' }, { ip });
+    expect(res.status).toBe(200);
+    expect((await res.json()).message).toBe('¡Gracias! Tu voto se ha registrado.');
+  });
+
+  it('corta por abuso a partir de 200 votos VÁLIDOS del mismo hash de IP (429)', async () => {
+    const ip = '81.0.0.9';
+    const ipHash = await hashIp(ip, IP_SALT_DE_PRUEBAS);
+    const filas = [];
+    for (let i = 0; i < 200; i++) {
+      filas.push({ voter_id: `votante-abuso-${i}`, fingerprint: `huella-abuso-${i}`, ip_hash: ipHash });
+    }
+    await seedVotes(filas);
+
+    mockTurnstile(true);
+    const res = await vote({ ...VALIDO, fingerprint: 'huella-desbordante' }, { ip });
     expect(res.status).toBe(429);
     expect((await res.json()).message).toBe('Demasiados intentos. Inténtalo más tarde.');
+  });
+
+  it('los votos anulados no cuentan para el cortafuegos de abuso (§10 devuelve el cupo)', async () => {
+    const ip = '81.0.0.10';
+    const ipHash = await hashIp(ip, IP_SALT_DE_PRUEBAS);
+    const filas = [];
+    for (let i = 0; i < 200; i++) {
+      filas.push({
+        voter_id: `votante-anulado-${i}`, fingerprint: `huella-anulada-${i}`,
+        ip_hash: ipHash, status: 'annulled'
+      });
+    }
+    await seedVotes(filas);
+
+    mockTurnstile(true);
+    const res = await vote({ ...VALIDO, fingerprint: 'huella-tras-anulacion' }, { ip });
+    expect(res.status).toBe(200);
+    expect((await res.json()).message).toBe('¡Gracias! Tu voto se ha registrado.');
   });
 
   it('guarda asn y asn_name cuando el objeto cf los trae', async () => {
@@ -237,5 +305,50 @@ describe('POST /api/vote', () => {
   it('rechaza GET en la ruta de voto', async () => {
     const res = await SELF.fetch('https://www.laorden.org/api/vote');
     expect(res.status).toBe(404);
+  });
+});
+
+describe('IP_SALT — falla cerrado si no es utilizable (G1)', () => {
+  // Se llama a handleVote directamente (en vez de por SELF.fetch) para poder
+  // alterar env.IP_SALT en una sola petición sin tocar los bindings globales
+  // de vitest.config.js, de los que depende el resto de la suite.
+
+  it('rechaza el voto si IP_SALT no está definido (500, mensaje neutro)', async () => {
+    const req = peticionVoto(VALIDO);
+    const res = await handleVote(req, { ...env, IP_SALT: undefined });
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+    expect(body.message).toBe('No hemos podido registrar tu voto. Inténtalo de nuevo más tarde.');
+    // El mensaje no debe delatar el motivo real al público.
+    expect(body.message.toLowerCase()).not.toMatch(/sal|salt|config/);
+
+    const { results } = await env.DB.prepare('SELECT * FROM votes').all();
+    expect(results).toHaveLength(0);
+  });
+
+  it('rechaza el voto si IP_SALT es la cadena vacía (500)', async () => {
+    const req = peticionVoto(VALIDO);
+    const res = await handleVote(req, { ...env, IP_SALT: '' });
+    expect(res.status).toBe(500);
+    const { results } = await env.DB.prepare('SELECT * FROM votes').all();
+    expect(results).toHaveLength(0);
+  });
+
+  it('rechaza el voto si IP_SALT es más corto que el mínimo (500)', async () => {
+    const req = peticionVoto(VALIDO);
+    const res = await handleVote(req, { ...env, IP_SALT: 'corta' });
+    expect(res.status).toBe(500);
+    const { results } = await env.DB.prepare('SELECT * FROM votes').all();
+    expect(results).toHaveLength(0);
+  });
+
+  it('con el IP_SALT de pruebas (14 caracteres) el voto se registra con normalidad', async () => {
+    mockTurnstile(true);
+    const req = peticionVoto(VALIDO);
+    const res = await handleVote(req, env);
+    expect(res.status).toBe(200);
+    const { results } = await env.DB.prepare('SELECT * FROM votes').all();
+    expect(results).toHaveLength(1);
   });
 });

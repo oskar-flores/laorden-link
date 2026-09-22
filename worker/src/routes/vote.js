@@ -1,19 +1,26 @@
 import { votingState } from '../lib/window.js';
 import { readCookie, serialiseVoterCookie, VOTER_COOKIE } from '../lib/cookies.js';
-import { hashIp, newVoterId } from '../lib/crypto.js';
+import { hashIp, newVoterId, saltIsUsable } from '../lib/crypto.js';
 import { verifyTurnstile } from '../lib/turnstile.js';
 
-// Cortafuegos de abuso (§8). Deliberadamente alto: no debe saltar nunca
-// para una familia ni para el wifi del local. NO es una regla de duplicados.
-const ABUSE_IP_LIMIT = 20;
+// Cortafuegos de abuso (§8). Deliberadamente alto: Turnstile es la defensa
+// real contra bots (paso 3, antes de llegar aquí); anular fraude después es
+// una decisión deliberada de la organización (bases §10), para la que
+// existen las columnas asn/asn_name/country/ip_hash y la consulta RIESGO de
+// /admin/results. El único trabajo de este cortafuegos es frenar
+// automatización desbocada, no deduplicar ni sustituir esa revisión — y no
+// debe saltar nunca por una operadora móvil española detrás de un CGNAT
+// compartido por cientos de personas.
+const ABUSE_IP_LIMIT = 200;
 
 const MSG = {
-  ok:        '¡Gracias! Tu voto se ha registrado.',
-  duplicate: 'Ya se ha registrado un voto desde este dispositivo.',
-  closed:    'La votación no está abierta.',
-  turnstile: 'No hemos podido verificar que eres una persona.',
-  badCode:   'Obra no válida.',
-  abuse:     'Demasiados intentos. Inténtalo más tarde.'
+  ok:          '¡Gracias! Tu voto se ha registrado.',
+  duplicate:   'Ya se ha registrado un voto desde este dispositivo.',
+  closed:      'La votación no está abierta.',
+  turnstile:   'No hemos podido verificar que eres una persona.',
+  badCode:     'Obra no válida.',
+  abuse:       'Demasiados intentos. Inténtalo más tarde.',
+  serverError: 'No hemos podido registrar tu voto. Inténtalo de nuevo más tarde.'
 };
 
 function json(status, ok, message, extraHeaders = {}) {
@@ -42,12 +49,21 @@ function nowFrom(request, env) {
 }
 
 export async function handleVote(request, env) {
-  // 1. Ventana de votación, antes que nada.
+  // 1. Salvaguarda de privacidad (G1): sin IP_SALT utilizable, hashIp no
+  //    puede cumplir la promesa de "hash irreversible" que hace
+  //    privacidad.html — fallar cerrado, con un mensaje neutro que no
+  //    revele el motivo, en vez de guardar votos con esa promesa rota y
+  //    sin ningún aviso.
+  if (!saltIsUsable(env.IP_SALT)) {
+    return json(500, false, MSG.serverError);
+  }
+
+  // 2. Ventana de votación.
   if (votingState(env, nowFrom(request, env)) !== 'open') {
     return json(403, false, MSG.closed);
   }
 
-  // 2. Cuerpo y validación del código de obra.
+  // 3. Cuerpo y validación del código de obra.
   let body;
   try {
     body = await request.json();
@@ -67,25 +83,27 @@ export async function handleVote(request, env) {
 
   const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
 
-  // 3. Turnstile antes que la deduplicación: frena lo único que escala de verdad.
+  // 4. Turnstile antes que la deduplicación: frena lo único que escala de verdad.
   const human = await verifyTurnstile(body.turnstile_token, env.TURNSTILE_SECRET, ip);
   if (!human) return json(403, false, MSG.turnstile);
 
-  // 4. Identidad del votante y hash de IP.
+  // 5. Identidad del votante y hash de IP.
   const existingVoterId = readCookie(request, VOTER_COOKIE);
   const voterId = existingVoterId || newVoterId();
   const ipHash = await hashIp(ip, env.IP_SALT);
   const setCookie = { 'Set-Cookie': serialiseVoterCookie(voterId) };
 
-  // 5. Cortafuegos de abuso por hash de IP (no es bloqueo por IP, §8).
+  // 6. Cortafuegos de abuso por hash de IP (no es bloqueo por IP, §8). Solo
+  //    cuentan los votos válidos: uno anulado por la organización (§10) debe
+  //    devolver su cupo a esa IP, no seguir ocupándolo para siempre.
   const abuse = await env.DB
-    .prepare('SELECT COUNT(*) AS n FROM votes WHERE ip_hash = ?')
+    .prepare("SELECT COUNT(*) AS n FROM votes WHERE ip_hash = ? AND status = 'valid'")
     .bind(ipHash).first();
   if (abuse && abuse.n >= ABUSE_IP_LIMIT) {
     return json(429, false, MSG.abuse, setCookie);
   }
 
-  // 6. Duplicados: la cookie primero (señal barata, evita falsos positivos
+  // 7. Duplicados: la cookie primero (señal barata, evita falsos positivos
   //    de huella en dispositivos idénticos, §8).
   const dupe = await env.DB
     .prepare(`SELECT 1 AS found FROM votes
@@ -94,7 +112,7 @@ export async function handleVote(request, env) {
     .bind(voterId, fingerprint, fingerprint).first();
   if (dupe) return json(409, false, MSG.duplicate, setCookie);
 
-  // 7. Inserción. Los índices únicos parciales son la garantía real frente
+  // 8. Inserción. Los índices únicos parciales son la garantía real frente
   //    a una carrera entre dos peticiones simultáneas.
   const cf = request.cf || {};
   try {
