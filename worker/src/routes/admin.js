@@ -11,6 +11,7 @@ const TALLY = `
 const RISK = `
   SELECT ip_hash, asn_name, COUNT(*) AS votos,
          COUNT(DISTINCT mini_code) AS obras_distintas,
+         GROUP_CONCAT(id) AS ids,
          MIN(created_at) AS primero, MAX(created_at) AS ultimo,
          (COUNT(*) > 5)                                   AS f_volumen,
          (asn_name LIKE '%Hosting%' OR asn_name LIKE '%Cloud%'
@@ -52,17 +53,19 @@ ${tally.map((r) => `<tr><td>#${esc(r.mini_code)}</td><td>${r.c}</td></tr>`).join
 
 <h2>Revisión de riesgo (§10)</h2>
 ${risk.length === 0 ? '<p class="aviso">Ningún origen marcado.</p>' : `
-<table><tr><th>Hash IP</th><th>Red</th><th>Votos</th><th>Obras</th><th>Primero</th><th>Último</th><th>Banderas</th></tr>
+<table><tr><th>Hash IP</th><th>Red</th><th>Votos</th><th>Obras</th><th>Primero</th><th>Último</th><th>Banderas</th><th>IDs</th></tr>
 ${risk.map((r) => `<tr>
   <td><code>${esc(String(r.ip_hash).slice(0, 12))}…</code></td>
   <td>${esc(r.asn_name)}</td><td>${r.votos}</td><td>${r.obras_distintas}</td>
   <td>${esc(r.primero)}</td><td>${esc(r.ultimo)}</td><td>${esc(banderas(r))}</td>
+  <td><code>${esc(r.ids)}</code></td>
 </tr>`).join('')}
 </table>`}
 
 <p class="aviso">Página de solo lectura. Anular un voto es una decisión deliberada
-y se hace por CLI:<br>
-<code>wrangler d1 execute laorden-votos --command "UPDATE votes SET status='annulled', annul_reason='...' WHERE id=?"</code></p>
+y se hace por CLI, con un id de la columna <strong>IDs</strong> de arriba:<br>
+<code>wrangler d1 execute laorden-votos --remote --command "UPDATE votes SET status='annulled', annul_reason='...' WHERE id=123"</code><br>
+Anular devuelve a esa persona la posibilidad de votar y libera cupo del cortafuegos por IP.</p>
 </body></html>`;
 }
 

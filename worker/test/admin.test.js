@@ -215,6 +215,30 @@ describe('GET /admin/results', () => {
     expect(body).toContain('concentrado');
   });
 
+  it('lista los ids de cada origen marcado, que son los que pide el comando de anulación', async () => {
+    // Sin esta columna la página dice "anula por id" y no enseña ni un id:
+    // quien ve un origen sospechoso no tiene forma de llegar al comando.
+    await seed([
+      { mini_code: '09', voter_id: 'v-1', fingerprint: 'f-1', ip_hash: 'hash-ids', asn_name: 'ISP Normal' },
+      { mini_code: '09', voter_id: 'v-2', fingerprint: 'f-2', ip_hash: 'hash-ids', asn_name: 'ISP Normal' },
+      { mini_code: '09', voter_id: 'v-3', fingerprint: 'f-3', ip_hash: 'hash-ids', asn_name: 'ISP Normal' },
+      { mini_code: '09', voter_id: 'v-4', fingerprint: 'f-4', ip_hash: 'hash-ids', asn_name: 'ISP Normal' }
+    ]);
+
+    mockJwks();
+    const res = await conToken(await firmar());
+    expect(res.status).toBe(200);
+    const body = await res.text();
+
+    // Los ids reales de las filas sembradas, tal y como los agrupa GROUP_CONCAT.
+    const fila = await env.DB
+      .prepare("SELECT GROUP_CONCAT(id) AS ids FROM votes WHERE ip_hash = 'hash-ids'")
+      .first();
+    expect(fila.ids).toMatch(/^\d+(,\d+)*$/);
+    expect(body).toContain('<th>IDs</th>');
+    expect(body).toContain(fila.ids);
+  });
+
   it('deniega incluso un JWT válido si ACCESS_TEAM_DOMAIN/ACCESS_AUD aún no están configurados', async () => {
     // Cubre el estado real de wrangler.toml hoy (cadenas vacías, se rellenan
     // en la Tarea 6): la guarda de verifyAccessJwt debe cortar en seco antes
