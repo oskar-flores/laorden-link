@@ -63,7 +63,9 @@ VOTING_CLOSE = "2027-01-01T00:00:00+01:00"
 MINI_COUNT   = "22"
 # Mismo origen que la página, igual que en producción: sin CORS.
 CORS_ORIGIN  = ""
-# El AUD es el de la aplicación de Access de TEST, no el de producción. Con
-# esto vacío el panel deniega hasta un JWT válido, que es el fallo seguro.
-ACCESS_TEAM_DOMAIN = ""
-ACCESS_AUD         = ""
+# El AUD es el de la aplicación de Access de TEST, no el de producción: son
+# aplicaciones distintas y tienen tags distintos. Si este valor estuviera mal,
+# el panel denegaría incluso a quien Access ya ha dejado pasar — es la defensa
+# en profundidad del §9 haciendo su trabajo, no un error de configuración.
+ACCESS_TEAM_DOMAIN = "fullmantis.cloudflareaccess.com"
+ACCESS_AUD         = "fdba9bb1d07c7c74acc94241647a1357215f1141e762986770726cf8a9e2bf2b"
