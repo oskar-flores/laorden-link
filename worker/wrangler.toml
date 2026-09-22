@@ -21,3 +21,49 @@ CORS_ORIGIN  = ""
 # Se rellenan en la Tarea 6, al crear la aplicación de Access.
 ACCESS_TEAM_DOMAIN = ""
 ACCESS_AUD         = ""
+
+# ── Entorno de pruebas: test.laorden.org ─────────────────────────────────────
+#
+#   ./scripts/desplegar-test.sh
+#
+# `wrangler deploy --env test` publica un Worker APARTE, llamado
+# laorden-votos-test, con su propia base y sus propios secretos. Producción no
+# se entera: son dos Workers distintos. Nunca despliegues este entorno sin
+# --env, o sobreescribirías el de producción.
+#
+# Diferencia de fondo con producción: aquí el Worker sirve TAMBIÉN el sitio
+# estático (el bloque assets), cosa que en www hace GitHub Pages. Por eso
+# test.laorden.org es un custom_domain —el Worker es el origen y Cloudflare
+# crea el registro DNS solo— y no una ruta como las de www.
+#
+# Ojo con wrangler: las vars y los bindings NO se heredan del bloque de
+# arriba. Todo lo que necesite este entorno tiene que estar repetido aquí, o
+# el despliegue falla la validación.
+[env.test]
+routes = [{ pattern = "test.laorden.org", custom_domain = true }]
+
+# Qué NO se sube está en .assetsignore, en la raíz del repo: worker/, docs/
+# (lleva vuestros correos) y fotos-originales/ (lleva EXIF). El despliegue lee
+# el DISCO, no lo que hay en git, así que eso es lo único que separa esos
+# ficheros de una URL pública. desplegar-test.sh lo comprueba después de subir.
+[env.test.assets]
+directory = ".."
+
+[[env.test.d1_databases]]
+binding = "DB"
+database_name = "laorden-votos-test"
+database_id = "PENDIENTE"   # npx wrangler d1 create laorden-votos-test
+migrations_dir = "migrations"
+
+[env.test.vars]
+# Votación FORZADA ABIERTA: es el motivo de que este entorno exista. En
+# producción la ventana de verdad la impone el bloque [vars] de arriba.
+VOTING_OPEN  = "2026-01-01T00:00:00+01:00"
+VOTING_CLOSE = "2027-01-01T00:00:00+01:00"
+MINI_COUNT   = "22"
+# Mismo origen que la página, igual que en producción: sin CORS.
+CORS_ORIGIN  = ""
+# El AUD es el de la aplicación de Access de TEST, no el de producción. Con
+# esto vacío el panel deniega hasta un JWT válido, que es el fallo seguro.
+ACCESS_TEAM_DOMAIN = ""
+ACCESS_AUD         = ""

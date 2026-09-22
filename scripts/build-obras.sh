@@ -118,9 +118,14 @@ sed -E -i.bak "s/^(MINI_COUNT[[:space:]]*=[[:space:]]*\")[0-9]+(\")/\1${TOTAL}\2
 # El .bak se borra por el trap de arriba (cubre también el caso en que el
 # propio sed falle a medias).
 
-LEIDO="$(grep -E '^MINI_COUNT' "$WRANGLER" | grep -oE '"[0-9]+"' | tr -d '"' || true)"
+# Hay un MINI_COUNT por entorno (producción y pruebas). El sed de arriba los
+# actualiza todos; aquí se exige que TODOS hayan quedado en el mismo número.
+# Si uno se descolgara, la galería y ese Worker se desincronizarían, que es
+# justo lo que este bloque existe para impedir.
+LEIDO="$(grep -E '^MINI_COUNT' "$WRANGLER" | grep -oE '"[0-9]+"' | tr -d '"' | sort -u || true)"
 if [ "$LEIDO" != "$TOTAL" ]; then
-  echo "MINI_COUNT en $WRANGLER no quedó en $TOTAL (dice '${LEIDO:-nada}'). $WRANGLER puede haber quedado a medias: revísalo a mano antes de desplegar." >&2
+  VISTO="$(echo "${LEIDO:-nada}" | tr '\n' ' ' | sed 's/ *$//')"
+  echo "MINI_COUNT en $WRANGLER no quedó en $TOTAL (dice '$VISTO'). $WRANGLER puede haber quedado a medias: revísalo a mano antes de desplegar." >&2
   exit 1
 fi
 
