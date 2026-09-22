@@ -271,10 +271,15 @@
         //   API_BASE:      vacío en producción (Worker en el mismo dominio).
         //                  En local, la URL del Worker de pruebas:
         //                  'https://laorden-votos.<subdominio>.workers.dev'
-        //   TURNSTILE_KEY: clave pública del widget (se rellena en la Tarea 6)
+        //   TURNSTILE_KEY: clave pública del widget. Es pública a propósito:
+        //                  viaja en este HTML. La secreta vive en Cloudflare,
+        //                  puesta con `wrangler secret put TURNSTILE_SECRET`.
+        //                  El widget tiene `laorden.org` como hostname, que
+        //                  cubre también sus subdominios: la misma clave vale
+        //                  en www y en test.laorden.org.
         // =============================================
         var API_BASE = '';
-        var TURNSTILE_KEY = 'PENDIENTE';
+        var TURNSTILE_KEY = '0x4AAAAAAE_2kgd0xFC-_HIl';
 
         // En local no hay clave real, así que el widget no podría ni dibujarse y
         // el flujo de voto sería imposible de probar en un navegador. Con la
