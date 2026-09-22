@@ -22,9 +22,10 @@ MANIFIESTO="$RAIZ/concurso/obras.json"
 WRANGLER="$RAIZ/worker/wrangler.toml"
 FORZADO="${TOTAL:-}"
 
-# Si el script muere a medias (foto corrupta, Ctrl-C), el temporal no se queda
-# suelto en concurso/. En el camino bueno el mv ya se lo ha llevado.
-trap 'rm -f "$MANIFIESTO.tmp"' EXIT
+# Si el script muere a medias (foto corrupta, Ctrl-C, sed sin permisos...) no
+# se queda ni el temporal del manifiesto ni el .bak de wrangler.toml sueltos.
+# En el camino bueno ya se han movido o borrado antes de llegar aquí.
+trap 'rm -f "$MANIFIESTO.tmp" "$WRANGLER.bak"' EXIT
 
 if ! command -v magick >/dev/null && ! command -v convert >/dev/null; then
   echo "Falta ImageMagick. Instálalo con: sudo apt install imagemagick webp" >&2
@@ -56,7 +57,13 @@ if [ -n "$FORZADO" ]; then
     echo "TOTAL='$FORZADO' no es un número. Uso: TOTAL=35 ./scripts/build-obras.sh" >&2
     exit 1
   fi
-  TOTAL="$FORZADO"
+  # 10# de base explícita: sin esto, un TOTAL con cero delante (ej. "007")
+  # bash lo interpretaría como octal y podría reventar la aritmética.
+  TOTAL=$((10#$FORZADO))
+  if [ "$TOTAL" -eq 0 ]; then
+    echo "TOTAL=0 no vale: no hay ninguna obra que generar. Si es que no hay fotos todavía, no fuerces TOTAL y el script lo dirá solo sin tocar nada." >&2
+    exit 1
+  fi
 else
   TOTAL="$(detectar_total)"
   if [ "$TOTAL" -eq 0 ]; then
@@ -65,11 +72,20 @@ else
   fi
 fi
 
+if [ "$TOTAL" -gt 99 ]; then
+  echo "TOTAL=$TOTAL no vale: los códigos de obra son de dos dígitos (01-99) y este concurso no tiene un caso real por encima de eso. Revisa fotos-originales/ o el valor de TOTAL forzado." >&2
+  exit 1
+fi
+
 mkdir -p "$DESTINO"
 : > "$MANIFIESTO.tmp"
 echo "[" >> "$MANIFIESTO.tmp"
 
-for i in $(seq -w 1 "$TOTAL"); do
+for n in $(seq 1 "$TOTAL"); do
+  # Padding fijo a dos dígitos: "seq -w" solo rellena a la anchura del mayor
+  # número del rango (con TOTAL=7 daría "1".."7" sin cero delante), y aquí el
+  # código de dos dígitos es un invariante del repo, no un detalle estético.
+  i="$(printf '%02d' "$n")"
   ORIGINAL="$(find "$ORIGEN" -maxdepth 1 -name "$i.*" 2>/dev/null | head -1 || true)"
 
   if [ -n "$ORIGINAL" ]; then
@@ -87,7 +103,7 @@ for i in $(seq -w 1 "$TOTAL"); do
     echo "  $i → sin foto (se mostrará el marcador)" >&2
   fi
 
-  if [ "$i" != "$(printf '%02d' "$TOTAL")" ]; then echo "," >> "$MANIFIESTO.tmp"; else echo "" >> "$MANIFIESTO.tmp"; fi
+  if [ "$n" -ne "$TOTAL" ]; then echo "," >> "$MANIFIESTO.tmp"; else echo "" >> "$MANIFIESTO.tmp"; fi
 done
 
 echo "]" >> "$MANIFIESTO.tmp"
@@ -99,7 +115,8 @@ if [ ! -f "$WRANGLER" ]; then
 fi
 
 sed -E -i.bak "s/^(MINI_COUNT[[:space:]]*=[[:space:]]*\")[0-9]+(\")/\1${TOTAL}\2/" "$WRANGLER"
-rm -f "$WRANGLER.bak"
+# El .bak se borra por el trap de arriba (cubre también el caso en que el
+# propio sed falle a medias).
 
 LEIDO="$(grep -E '^MINI_COUNT' "$WRANGLER" | grep -oE '"[0-9]+"' | tr -d '"' || true)"
 if [ "$LEIDO" != "$TOTAL" ]; then
