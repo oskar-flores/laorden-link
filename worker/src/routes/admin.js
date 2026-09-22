@@ -4,11 +4,11 @@ const esc = (s) => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;')
   .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-const TALLY = `
+export const TALLY = `
   SELECT mini_code, COUNT(*) AS c FROM votes
   WHERE status = 'valid' GROUP BY mini_code ORDER BY c DESC`;
 
-const RISK = `
+export const RISK = `
   SELECT ip_hash, asn_name, COUNT(*) AS votos,
          COUNT(DISTINCT mini_code) AS obras_distintas,
          GROUP_CONCAT(id) AS ids,
@@ -22,7 +22,7 @@ const RISK = `
   HAVING f_volumen OR f_datacenter OR f_concentrado
   ORDER BY votos DESC`;
 
-function page(totals, tally, risk, email) {
+export function page(totals, tally, risk, email) {
   const banderas = (r) => [
     r.f_volumen ? 'volumen' : null,
     r.f_datacenter ? 'datacenter' : null,
