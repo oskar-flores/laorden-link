@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacidad de la votación · La Orden</title>
+    <meta name="description" content="Qué datos se registran al votar en el concurso de pintura de miniaturas de La Orden, Portugalete.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=Karla:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-deep: #0D0906;
+            --bg-warm: #1A1008;
+            --bg-panel: rgba(255,255,255,0.03);
+            --copper: #C47832;
+            --copper-light: #D4924A;
+            --text-light: #F0E6D6;
+            --text-muted: #8A7560;
+            --border-subtle: rgba(196,120,50,0.12);
+            --border-accent: rgba(196,120,50,0.25);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Karla', sans-serif;
+            background: var(--bg-deep);
+            color: var(--text-light);
+            line-height: 1.7;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        h1, h2 {
+            font-family: 'Young Serif', serif;
+            font-weight: 400;
+        }
+
+        a {
+            color: var(--copper-light);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        a:hover { color: var(--copper); }
+
+        .container { max-width: 780px; margin: 0 auto; padding: 0 24px; }
+
+        /* --- NAV --- */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 100;
+            background: rgba(13,9,6,0.92);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 14px 0;
+        }
+        .nav-inner {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .nav-brand img {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            border: 1.5px solid var(--copper);
+            object-fit: cover;
+        }
+        .nav-brand span {
+            font-family: 'Young Serif', serif;
+            color: var(--copper);
+            font-size: 1.15rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+        .nav-back {
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+        .nav-back:hover { color: var(--copper); }
+
+        /* --- HEADER --- */
+        .doc-header {
+            margin-top: 70px;
+            padding: 64px 0 48px;
+            background: linear-gradient(180deg, var(--bg-warm) 0%, var(--bg-deep) 100%);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .doc-label {
+            color: var(--copper);
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            margin-bottom: 14px;
+        }
+        .doc-header h1 {
+            font-size: clamp(1.9rem, 4.5vw, 2.8rem);
+            line-height: 1.15;
+        }
+
+        /* --- BODY --- */
+        .doc-body { padding: 48px 0 72px; }
+        .doc-body h2 {
+            font-size: 1.35rem;
+            color: var(--text-light);
+            margin: 44px 0 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .doc-body h2:first-child { margin-top: 0; }
+        .doc-body p {
+            color: var(--text-muted);
+            margin-bottom: 14px;
+        }
+        .doc-body strong { color: var(--text-light); font-weight: 600; }
+        .doc-body ul {
+            list-style: none;
+            color: var(--text-muted);
+            margin-bottom: 14px;
+        }
+        .doc-body li {
+            position: relative;
+            padding-left: 22px;
+            margin-bottom: 10px;
+        }
+        .doc-body li::before {
+            content: '';
+            position: absolute;
+            left: 2px;
+            top: 0.75em;
+            width: 6px;
+            height: 6px;
+            background: var(--copper);
+            border-radius: 50%;
+            opacity: 0.6;
+        }
+
+        /* --- FOOTER --- */
+        footer {
+            margin-top: auto;
+            padding: 28px 0;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            border-top: 1px solid var(--border-subtle);
+            letter-spacing: 1px;
+        }
+
+        /* --- RESPONSIVE --- */
+        @media (max-width: 768px) {
+            .doc-header { padding: 44px 0 36px; }
+            .nav-brand span { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="nav-inner">
+            <a href="../index.html" class="nav-brand">
+                <img src="../logo.jpg" alt="Logo La Orden">
+                <span>La Orden</span>
+            </a>
+            <a href="votacion.html" class="nav-back">&larr; Volver a la votación</a>
+        </div>
+    </nav>
+
+    <header class="doc-header">
+        <div class="container">
+            <div class="doc-label">Concurso de Pintura de Miniaturas</div>
+            <h1>Votación del concurso &mdash; privacidad</h1>
+        </div>
+    </header>
+
+    <main class="doc-body">
+        <div class="container">
+            <h2>Qué registramos cuando votas</h2>
+            <ul>
+                <li>La obra que eliges.</li>
+                <li>Un identificador aleatorio guardado en una cookie de tu navegador.</li>
+                <li>Un identificador técnico de tu navegador y dispositivo (huella), para
+                    evitar votos duplicados.</li>
+                <li>Tu dirección IP <strong>anonimizada</strong>: no guardamos la IP, solo un
+                    hash irreversible que permite agrupar votos del mismo origen.</li>
+                <li>Tu navegador (user-agent), el país y la red desde la que te conectas.</li>
+            </ul>
+
+            <h2>Para qué</h2>
+            <p>Únicamente para garantizar que cada persona emite un solo voto, como exige el
+            punto 10 de las bases, y para que la organización pueda detectar y anular votos
+            fraudulentos.</p>
+
+            <h2>Cuándo se borra</h2>
+            <p>Los datos técnicos (huella, hash de IP, navegador, país y red) se eliminan
+            <strong>30 días después del fallo del concurso</strong>, es decir, antes del
+            16 de noviembre de 2026. Solo se conserva el recuento agregado.</p>
+
+            <h2>No recogemos</h2>
+            <p>Ni nombre, ni correo electrónico, ni ningún dato que te identifique
+            personalmente. No se comparte nada con terceros y no se usa para publicidad.</p>
+
+            <h2>Contacto</h2>
+            <p>Para cualquier duda o para solicitar la eliminación de tu voto:
+            <a href="mailto:laordenaslu@gmail.com">laordenaslu@gmail.com</a></p>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            La Orden &copy; 2025 &middot; Asociación Lúdica
+        </div>
+    </footer>
+
+</body>
+</html>
