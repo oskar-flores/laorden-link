@@ -4,6 +4,14 @@
 #   1. Deja las fotos en  fotos-originales/  con el nombre del código: 01.jpg, 02.jpg…
 #   2. Ejecuta:  ./scripts/build-obras.sh
 #
+# El número de obras sale solo: es el código más alto que haya en
+# fotos-originales/ (07.jpg, 22.jpg… → 22). Si aún no están todas las fotos,
+# se puede forzar:  TOTAL=35 ./scripts/build-obras.sh  — las que falten salen
+# con marcador, como siempre.
+#
+# El script también actualiza MINI_COUNT en worker/wrangler.toml al mismo
+# número, para que la galería y el Worker nunca se desincronicen.
+#
 # Requiere ImageMagick:  sudo apt install imagemagick webp
 set -euo pipefail
 
@@ -11,7 +19,8 @@ RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
 ORIGEN="$RAIZ/fotos-originales"
 DESTINO="$RAIZ/concurso/obras"
 MANIFIESTO="$RAIZ/concurso/obras.json"
-TOTAL=22
+WRANGLER="$RAIZ/worker/wrangler.toml"
+FORZADO="${TOTAL:-}"
 
 # Si el script muere a medias (foto corrupta, Ctrl-C), el temporal no se queda
 # suelto en concurso/. En el camino bueno el mv ya se lo ha llevado.
@@ -22,6 +31,39 @@ if ! command -v magick >/dev/null && ! command -v convert >/dev/null; then
   exit 1
 fi
 MAGICK="$(command -v magick || command -v convert)"
+
+# Código más alto encontrado en fotos-originales/ (07.jpg, 22.png… → 7, 22).
+# El "10#" evita que bash lea "08" o "09" como octal inválido.
+detectar_total() {
+  local max=0 encontrado=0 f base nombre num
+  if [ -d "$ORIGEN" ]; then
+    for f in "$ORIGEN"/*; do
+      [ -f "$f" ] || continue
+      base="$(basename "$f")"
+      nombre="${base%.*}"
+      if [[ "$nombre" =~ ^[0-9]+$ ]]; then
+        num=$((10#$nombre))
+        encontrado=1
+        [ "$num" -gt "$max" ] && max=$num
+      fi
+    done
+  fi
+  [ "$encontrado" -eq 1 ] && echo "$max" || echo 0
+}
+
+if [ -n "$FORZADO" ]; then
+  if ! [[ "$FORZADO" =~ ^[0-9]+$ ]]; then
+    echo "TOTAL='$FORZADO' no es un número. Uso: TOTAL=35 ./scripts/build-obras.sh" >&2
+    exit 1
+  fi
+  TOTAL="$FORZADO"
+else
+  TOTAL="$(detectar_total)"
+  if [ "$TOTAL" -eq 0 ]; then
+    echo "No hay fotos en $ORIGEN (o TOTAL=N para forzarlo). No se toca $MANIFIESTO ni $WRANGLER." >&2
+    exit 0
+  fi
+fi
 
 mkdir -p "$DESTINO"
 : > "$MANIFIESTO.tmp"
@@ -51,6 +93,21 @@ done
 echo "]" >> "$MANIFIESTO.tmp"
 mv "$MANIFIESTO.tmp" "$MANIFIESTO"
 
+if [ ! -f "$WRANGLER" ]; then
+  echo "No se encuentra $WRANGLER: no se ha podido ajustar MINI_COUNT. $MANIFIESTO ya quedó con $TOTAL obras; revisa $WRANGLER a mano." >&2
+  exit 1
+fi
+
+sed -E -i.bak "s/^(MINI_COUNT[[:space:]]*=[[:space:]]*\")[0-9]+(\")/\1${TOTAL}\2/" "$WRANGLER"
+rm -f "$WRANGLER.bak"
+
+LEIDO="$(grep -E '^MINI_COUNT' "$WRANGLER" | grep -oE '"[0-9]+"' | tr -d '"' || true)"
+if [ "$LEIDO" != "$TOTAL" ]; then
+  echo "MINI_COUNT en $WRANGLER no quedó en $TOTAL (dice '${LEIDO:-nada}'). $WRANGLER puede haber quedado a medias: revísalo a mano antes de desplegar." >&2
+  exit 1
+fi
+
 echo "" >&2
+echo "Detectadas $TOTAL obras. MINI_COUNT ajustado a $TOTAL en $WRANGLER." >&2
 echo "Manifiesto actualizado: $MANIFIESTO" >&2
 du -sh "$DESTINO" 2>/dev/null >&2 || true
