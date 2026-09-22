@@ -97,8 +97,25 @@ done
 
 echo "" >&2
 echo "El sitio y la API:" >&2
-c="$(codigo /concurso/votacion.html)"
-[ "$c" = "200" ] && bien "la galería carga" || mal "la galería responde $c"
+# El enrutado de assets quita el .html y redirige: /concurso/votacion.html
+# acaba en /concurso/votacion con un 307. En producción lo sirve GitHub Pages
+# sin redirigir, así que las URLs de los dos entornos no son idénticas; la
+# página sí. Por eso aquí se sigue la redirección y se mira el contenido, que
+# dice bastante más que el código de estado.
+galeria="$(curl -sL --max-time 20 "https://$HOST/concurso/votacion.html" || true)"
+if echo "$galeria" | grep -q '<title>Premio del público'; then
+  bien "la galería carga"
+else
+  mal "la galería no carga (responde $(codigo /concurso/votacion.html) y, siguiendo la redirección, no aparece su título)"
+fi
+
+# Si la clave pública de Turnstile llegara sin rellenar, el widget no se
+# dibujaría y no se podría votar: el fallo se vería en el navegador y no aquí.
+if echo "$galeria" | grep -q "TURNSTILE_KEY = 'PENDIENTE'"; then
+  mal "la página se sirve con TURNSTILE_KEY = 'PENDIENTE': el widget no se dibujará"
+else
+  bien "la página lleva su clave de Turnstile"
+fi
 
 estado="$(curl -s --max-time 15 "https://$HOST/api/status" || true)"
 if echo "$estado" | grep -q '"open": *true'; then
