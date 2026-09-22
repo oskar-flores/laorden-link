@@ -43,7 +43,7 @@ export function page(totals, tally, risk, email) {
   .aviso { color:#8A7560; font-size:0.9em; max-width:60ch; }
   code { background:rgba(255,255,255,0.05); padding:2px 5px; }
 </style></head><body>
-<h1>Resultados — I Concurso de Pintura</h1>
+<h1>Resultados I Concurso de Pintura</h1>
 <p class="aviso">Sesión: ${esc(email)} · Votos válidos: <strong>${totals}</strong></p>
 
 <h2>Recuento</h2>
@@ -51,7 +51,7 @@ export function page(totals, tally, risk, email) {
 ${tally.map((r) => `<tr><td>#${esc(r.mini_code)}</td><td>${r.c}</td></tr>`).join('')}
 </table>
 
-<h2>Revisión de riesgo (§10)</h2>
+<h2>Actividad sospechosa</h2>
 ${risk.length === 0 ? '<p class="aviso">Ningún origen marcado.</p>' : `
 <table><tr><th>Hash IP</th><th>Red</th><th>Votos</th><th>Obras</th><th>Primero</th><th>Último</th><th>Banderas</th><th>IDs</th></tr>
 ${risk.map((r) => `<tr>
@@ -62,10 +62,7 @@ ${risk.map((r) => `<tr>
 </tr>`).join('')}
 </table>`}
 
-<p class="aviso">Página de solo lectura. Anular un voto es una decisión deliberada
-y se hace por CLI, con un id de la columna <strong>IDs</strong> de arriba:<br>
-<code>wrangler d1 execute laorden-votos --remote --command "UPDATE votes SET status='annulled', annul_reason='...' WHERE id=123"</code><br>
-Anular devuelve a esa persona la posibilidad de votar y libera cupo del cortafuegos por IP.</p>
+<p class="aviso">Página de solo lectura.</p>
 </body></html>`;
 }
 
