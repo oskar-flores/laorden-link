@@ -52,7 +52,7 @@ directory = ".."
 [[env.test.d1_databases]]
 binding = "DB"
 database_name = "laorden-votos-test"
-database_id = "PENDIENTE"   # npx wrangler d1 create laorden-votos-test
+database_id = "212093d1-1583-49f4-8dac-2dfbf5784dfa"
 migrations_dir = "migrations"
 
 [env.test.vars]
