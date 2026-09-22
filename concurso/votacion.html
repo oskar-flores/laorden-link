@@ -276,6 +276,17 @@
         var API_BASE = '';
         var TURNSTILE_KEY = 'PENDIENTE';
 
+        // En local no hay clave real, así que el widget no podría ni dibujarse y
+        // el flujo de voto sería imposible de probar en un navegador. Con la
+        // clave de PRUEBAS que publica Cloudflare sí se dibuja y siempre pasa.
+        // Solo aplica en localhost: en www.laorden.org manda la clave de arriba.
+        //   1x00000000000000000000AA  siempre pasa (visible)
+        //   2x00000000000000000000AB  siempre bloquea
+        //   3x00000000000000000000FF  fuerza el reto interactivo
+        if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+            TURNSTILE_KEY = '1x00000000000000000000AA';
+        }
+
         var FP_CDN = 'https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@4/dist/fp.min.js';
 
         // Plazos (ms). Ningún camino puede quedarse esperando para siempre:
