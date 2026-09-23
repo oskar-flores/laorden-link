@@ -224,7 +224,7 @@ describe('POST /api/code', () => {
 
   it('sin binding de correo responde el mensaje neutro, no un 500 con el motivo', async () => {
     mockTurnstile(true);
-    const res = await handleCode(peticion(VALIDO), { ...env, ...VARS });
+    const res = await handleCode(peticion(VALIDO), { ...env, ...VARS, EMAIL: undefined });
     expect(res.status).toBe(503);
     const cuerpo = await res.json();
     expect(cuerpo.message).toBe(FALLO);
@@ -250,6 +250,17 @@ describe('POST /api/code', () => {
   it('la ruta existe y solo acepta POST', async () => {
     const get = await SELF.fetch('https://www.laorden.org/api/code');
     expect(get.status).toBe(404);
+
+    // Prueba de verdad el cableado en index.js, no solo handleCode() a pelo:
+    // fuera de la ventana de votación no hace falta Turnstile (esa capa va
+    // antes) y el resultado es determinista sin dobles ni mocks de red.
+    const post = await SELF.fetch('https://www.laorden.org/api/code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Test-Now': '2026-10-01T10:00:00+02:00' },
+      body: JSON.stringify({})
+    });
+    expect(post.status).toBe(403);
+    expect((await post.json()).message).toBe('La votación no está abierta.');
   });
 });
 
