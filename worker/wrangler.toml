@@ -115,7 +115,7 @@ directory = ".."
 [[env.correo.d1_databases]]
 binding = "DB"
 database_name = "laorden-votos-correo"
-database_id = "PENDIENTE"   # npx wrangler d1 create laorden-votos-correo
+database_id = "282eb59b-f2da-47e6-a3bc-1fc304fee017"
 migrations_dir = "migrations"
 
 [[env.correo.send_email]]
@@ -130,7 +130,7 @@ CORS_ORIGIN  = ""
 # El AUD es el de la aplicación de Access de test-correo.laorden.org: es una
 # aplicación distinta de la de test y tiene un tag distinto.
 ACCESS_TEAM_DOMAIN = "fullmantis.cloudflareaccess.com"
-ACCESS_AUD         = "PENDIENTE"
+ACCESS_AUD         = "f15a64de9757fa9216c64e4b7035cf4f9867914e520186771da44196d2b27189"
 CODIGO_MINUTOS   = "10"
 CODIGO_INTENTOS  = "5"
 CODIGOS_POR_HORA = "3"
