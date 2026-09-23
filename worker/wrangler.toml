@@ -12,6 +12,11 @@ database_name = "laorden-votos"
 database_id = "PENDIENTE"   # se rellena en la Tarea 6
 migrations_dir = "migrations"
 
+# Cloudflare Email Service. El binding va por entorno igual que la base: las
+# vars y los bindings NO se heredan entre entornos en wrangler.
+[[send_email]]
+name = "EMAIL"
+
 [vars]
 VOTING_OPEN  = "2026-10-11T10:00:00+02:00"
 VOTING_CLOSE = "2026-10-17T12:00:00+02:00"
@@ -21,6 +26,14 @@ CORS_ORIGIN  = ""
 # Se rellenan en la Tarea 6, al crear la aplicación de Access.
 ACCESS_TEAM_DOMAIN = ""
 ACCESS_AUD         = ""
+
+# ── Voto verificado por correo (spec 2026-09-22 §12) ─────────────────────────
+CODIGO_MINUTOS   = "10"     # vida del código
+CODIGO_INTENTOS  = "5"      # fallos antes de que el código muera
+CODIGOS_POR_HORA = "3"      # por dirección — el freno antimailbomb
+MAX_CORREOS_DIA  = "400"    # techo global: lo que impide que un fallo queme la
+                            # cuota del mes y la reputación del dominio días
+                            # antes de que abra la votación
 
 # ── Entorno de pruebas: test.laorden.org ─────────────────────────────────────
 #
@@ -55,6 +68,9 @@ database_name = "laorden-votos-test"
 database_id = "212093d1-1583-49f4-8dac-2dfbf5784dfa"
 migrations_dir = "migrations"
 
+[[env.test.send_email]]
+name = "EMAIL"
+
 [env.test.vars]
 # Votación FORZADA ABIERTA: es el motivo de que este entorno exista. En
 # producción la ventana de verdad la impone el bloque [vars] de arriba.
@@ -69,3 +85,7 @@ CORS_ORIGIN  = ""
 # en profundidad del §9 haciendo su trabajo, no un error de configuración.
 ACCESS_TEAM_DOMAIN = "fullmantis.cloudflareaccess.com"
 ACCESS_AUD         = "fdba9bb1d07c7c74acc94241647a1357215f1141e762986770726cf8a9e2bf2b"
+CODIGO_MINUTOS   = "10"
+CODIGO_INTENTOS  = "5"
+CODIGOS_POR_HORA = "3"
+MAX_CORREOS_DIA  = "400"
