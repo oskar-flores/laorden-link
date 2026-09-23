@@ -106,6 +106,8 @@ La Orden Asociación Lúdica organiza el I Concurso de Pintura de Miniaturas con
 
 - Una vez finalizado el plazo de entrega de las miniaturas, se publicará una galería con todas las obras. La votación del público se realizará exclusivamente de forma online durante un periodo de una semana.
 - Cada persona podrá emitir un único voto.
+- Para votar es necesario verificar una dirección de correo electrónico: se envía un código de un solo uso que hay que introducir para confirmar el voto.
+- Si la verificación falla y el código no llega, la organización podrá registrar el voto por otra vía, dejando constancia de ello.
 - La organización podrá anular aquellos votos que considere fraudulentos o realizados con ánimo de alterar el resultado.
 
 ## 11. Sorteos
