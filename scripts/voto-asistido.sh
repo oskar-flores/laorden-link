@@ -39,10 +39,18 @@ AYUDA
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --correo)  CORREO="${2:-}"; shift 2 ;;
-    --obra)    OBRA="${2:-}"; shift 2 ;;
-    --nota)    NOTA="${2:-}"; shift 2 ;;
-    --entorno) ENTORNO="${2:-}"; shift 2 ;;
+    --correo)
+      case "${2-}" in ''|--*) echo "Falta el valor de --correo" >&2; uso ;; esac
+      CORREO="$2"; shift 2 ;;
+    --obra)
+      case "${2-}" in ''|--*) echo "Falta el valor de --obra" >&2; uso ;; esac
+      OBRA="$2"; shift 2 ;;
+    --nota)
+      case "${2-}" in ''|--*) echo "Falta el valor de --nota" >&2; uso ;; esac
+      NOTA="$2"; shift 2 ;;
+    --entorno)
+      case "${2-}" in ''|--*) echo "Falta el valor de --entorno" >&2; uso ;; esac
+      ENTORNO="$2"; shift 2 ;;
     --simular) SIMULAR=1; shift ;;
     -h|--help) uso ;;
     *) echo "Argumento desconocido: $1" >&2; uso ;;
@@ -57,6 +65,12 @@ case "$OBRA" in
   [0-9][0-9]) : ;;
   *) echo "La obra debe ser un código de dos dígitos, por ejemplo 07." >&2; exit 1 ;;
 esac
+
+MINI_COUNT="$(awk -F'"' '/^MINI_COUNT/{print $2; exit}' "$RAIZ/worker/wrangler.toml")"
+if [ "$((10#$OBRA))" -lt 1 ] || [ "$((10#$OBRA))" -gt "$MINI_COUNT" ]; then
+  echo "La obra #$OBRA no existe (hay $MINI_COUNT obras)." >&2
+  exit 1
+fi
 
 case "$ENTORNO" in
   produccion) BASE="laorden-votos";        ENV_FLAG="" ;;
