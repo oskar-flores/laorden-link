@@ -91,3 +91,48 @@ CODIGO_INTENTOS  = "5"
 CODIGOS_POR_HORA = "3"
 MAX_CORREOS_DIA  = "400"
 EMAIL_REMITENTE  = "votacion@laorden.org"
+
+# ── Entorno del voto por correo: test-correo.laorden.org ─────────────────────
+#
+#   ./scripts/desplegar-correo.sh
+#
+# Existe para poder enseñar LOS DOS sistemas a la vez y compararlos en móviles
+# de verdad (spec 2026-09-22 §12.1). Worker aparte, base aparte, aplicación de
+# Access aparte, secretos aparte: ninguno de los dos puede tocar los votos del
+# otro.
+#
+# Coste: cero. Las bases D1, los entornos de Worker y los dominios propios
+# sobre una zona que ya está en Cloudflare son gratis; lo único que se paga es
+# el upgrade a Workers Paid de 5 $, que cubre la cuenta entera.
+#
+# Igual que arriba: las vars y los bindings NO se heredan. Todo repetido.
+[env.correo]
+routes = [{ pattern = "test-correo.laorden.org", custom_domain = true }]
+
+[env.correo.assets]
+directory = ".."
+
+[[env.correo.d1_databases]]
+binding = "DB"
+database_name = "laorden-votos-correo"
+database_id = "PENDIENTE"   # npx wrangler d1 create laorden-votos-correo
+migrations_dir = "migrations"
+
+[[env.correo.send_email]]
+name = "EMAIL"
+
+[env.correo.vars]
+# Votación FORZADA ABIERTA, igual que en test: es el motivo de que exista.
+VOTING_OPEN  = "2026-01-01T00:00:00+01:00"
+VOTING_CLOSE = "2027-01-01T00:00:00+01:00"
+MINI_COUNT   = "10"
+CORS_ORIGIN  = ""
+# El AUD es el de la aplicación de Access de test-correo.laorden.org: es una
+# aplicación distinta de la de test y tiene un tag distinto.
+ACCESS_TEAM_DOMAIN = "fullmantis.cloudflareaccess.com"
+ACCESS_AUD         = "PENDIENTE"
+CODIGO_MINUTOS   = "10"
+CODIGO_INTENTOS  = "5"
+CODIGOS_POR_HORA = "3"
+MAX_CORREOS_DIA  = "400"
+EMAIL_REMITENTE  = "votacion@laorden.org"

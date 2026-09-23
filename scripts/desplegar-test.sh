@@ -26,6 +26,30 @@
 set -euo pipefail
 
 RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
+
+# Los dos entornos viven en el mismo wrangler.toml de la rama del correo, así
+# que `deploy --env test` desde esa rama sobreescribiría el despliegue
+# anónimo con el código del correo y destruiría la comparación (spec
+# 2026-09-22 §12.1). Este entorno se despliega desde su rama y solo desde ella.
+RAMA_ESPERADA="feature/votacion-publica"
+RAMA="$(cd "$RAIZ" && git rev-parse --abbrev-ref HEAD)"
+if [ "$RAMA" != "$RAMA_ESPERADA" ] && [ -z "${FORZAR_RAMA:-}" ]; then
+  cat >&2 <<AVISO
+
+  test.laorden.org sirve el sistema ANÓNIMO, y se despliega desde
+  $RAMA_ESPERADA. Estás en $RAMA.
+
+  Desplegar desde aquí sobreescribiría el sistema anónimo con el del correo y
+  os quedaríais sin nada que comparar. Para el voto por correo:
+
+    ./scripts/desplegar-correo.sh
+
+  Si de verdad sabes lo que haces:  FORZAR_RAMA=1 ./scripts/desplegar-test.sh
+
+AVISO
+  exit 1
+fi
+
 HOST="${HOST:-test.laorden.org}"
 WRANGLER="$RAIZ/worker/wrangler.toml"
 
