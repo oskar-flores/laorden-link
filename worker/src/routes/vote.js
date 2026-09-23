@@ -85,7 +85,7 @@ export async function handleVote(request, env) {
 
   // 4. El código vivo más reciente de esa dirección.
   const fila = await env.DB.prepare(
-    `SELECT id, codigo_hash, expira_en, intentos FROM codigos
+    `SELECT id, codigo_hash, expira_en FROM codigos
      WHERE email_norm = ? AND usado_en IS NULL
      ORDER BY id DESC LIMIT 1`
   ).bind(emailNorm).first();
@@ -96,18 +96,26 @@ export async function handleVote(request, env) {
     return json(400, false, MSG.codigoMal);
   }
 
+  const maxIntentos = Number(env.CODIGO_INTENTOS);
+  // Reserva el intento ANTES de comparar el hash: así el límite lo impone la
+  // base bajo concurrencia, no una lectura en memoria que dos peticiones
+  // pueden compartir. Una petición que no consigue plaza (código ya cerrado,
+  // o ya al tope) nunca llega a comparar el hash -- y por tanto nunca puede
+  // acertar, por muchas peticiones simultáneas que se lancen.
+  const turno = await env.DB.prepare(
+    `UPDATE codigos SET intentos = intentos + 1
+     WHERE id = ? AND usado_en IS NULL AND intentos < ?
+     RETURNING intentos`
+  ).bind(fila.id, maxIntentos).first();
+  if (!turno) return json(400, false, MSG.codigoMal);
+
   const esperado = await hashCodigo(env.IP_SALT, emailNorm, codigo);
   if (esperado !== fila.codigo_hash) {
-    const maxIntentos = Number(env.CODIGO_INTENTOS);
-    // Atómico: la cuenta y el cierre van en la MISMA UPDATE, para que fallos
-    // simultáneos no se pisen el contador el uno al otro (lost update) ni
-    // reabran un código que otra petición concurrente ya cerró (nunca se
-    // escribe usado_en = NULL a ciegas, solo se actualiza si seguía vivo).
-    await env.DB.prepare(
-      `UPDATE codigos SET intentos = intentos + 1,
-              usado_en = CASE WHEN intentos + 1 >= ? THEN ? ELSE usado_en END
-       WHERE id = ? AND usado_en IS NULL`
-    ).bind(maxIntentos, ahora.toISOString(), fila.id).run();
+    if (turno.intentos >= maxIntentos) {
+      await env.DB.prepare(
+        'UPDATE codigos SET usado_en = ? WHERE id = ? AND usado_en IS NULL'
+      ).bind(ahora.toISOString(), fila.id).run();
+    }
     return json(400, false, MSG.codigoMal);
   }
 
