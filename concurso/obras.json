@@ -1,8 +1,12 @@
 [
-  { "code": "01" }, { "code": "02" }, { "code": "03" }, { "code": "04" },
-  { "code": "05" }, { "code": "06" }, { "code": "07" }, { "code": "08" },
-  { "code": "09" }, { "code": "10" }, { "code": "11" }, { "code": "12" },
-  { "code": "13" }, { "code": "14" }, { "code": "15" }, { "code": "16" },
-  { "code": "17" }, { "code": "18" }, { "code": "19" }, { "code": "20" },
-  { "code": "21" }, { "code": "22" }
+  { "code": "01", "img": "obras/01.webp", "thumb": "obras/01-thumb.webp" },
+  { "code": "02", "img": "obras/02.webp", "thumb": "obras/02-thumb.webp" },
+  { "code": "03", "img": "obras/03.webp", "thumb": "obras/03-thumb.webp" },
+  { "code": "04", "img": "obras/04.webp", "thumb": "obras/04-thumb.webp" },
+  { "code": "05", "img": "obras/05.webp", "thumb": "obras/05-thumb.webp" },
+  { "code": "06", "img": "obras/06.webp", "thumb": "obras/06-thumb.webp" },
+  { "code": "07", "img": "obras/07.webp", "thumb": "obras/07-thumb.webp" },
+  { "code": "08", "img": "obras/08.webp", "thumb": "obras/08-thumb.webp" },
+  { "code": "09", "img": "obras/09.webp", "thumb": "obras/09-thumb.webp" },
+  { "code": "10", "img": "obras/10.webp", "thumb": "obras/10-thumb.webp" }
 ]

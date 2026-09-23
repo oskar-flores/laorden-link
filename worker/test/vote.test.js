@@ -137,7 +137,7 @@ describe('POST /api/vote', () => {
     expect(uno.status).toBe(200);
 
     mockTurnstile(true);
-    const dos = await vote({ ...VALIDO, mini_code: '12', fingerprint: '' },
+    const dos = await vote({ ...VALIDO, mini_code: '02', fingerprint: '' },
                            { cookie: 'voter_id=votante-dos' });
     expect(dos.status).toBe(200);
     expect((await dos.json()).message).toBe('¡Gracias! Tu voto se ha registrado.');
