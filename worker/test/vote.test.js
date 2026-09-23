@@ -42,7 +42,7 @@ function vote(body, { cookie, ip = '81.0.0.1', now = DURANTE } = {}) {
   });
 }
 
-const VALIDO = { mini_code: '07', fingerprint: 'huella-a', turnstile_token: 'tok' };
+const VALIDO = { mini_code: '07', turnstile_token: 'tok' };
 
 /** Petición cruda, para llamar a handleVote directamente con un env alterado. */
 function peticionVoto(body, { cookie, ip = '81.0.0.1', now = DURANTE } = {}) {
@@ -60,11 +60,11 @@ function peticionVoto(body, { cookie, ip = '81.0.0.1', now = DURANTE } = {}) {
 /** Inserta filas de votos directamente, sin pasar por /api/vote. */
 async function seedVotes(rows) {
   const stmt = env.DB.prepare(
-    `INSERT INTO votes (mini_code, voter_id, fingerprint, ip_hash, created_at, status)
-     VALUES (?, ?, ?, ?, ?, ?)`
+    `INSERT INTO votes (mini_code, voter_id, ip_hash, created_at, status)
+     VALUES (?, ?, ?, ?, ?)`
   );
   await env.DB.batch(rows.map((r) => stmt.bind(
-    r.mini_code || '07', r.voter_id, r.fingerprint, r.ip_hash,
+    r.mini_code || '07', r.voter_id, r.ip_hash,
     r.created_at || new Date().toISOString(), r.status || 'valid'
   )));
 }
@@ -99,61 +99,21 @@ describe('POST /api/vote', () => {
     const voterId = first.headers.get('Set-Cookie').match(/voter_id=([^;]+)/)[1];
 
     mockTurnstile(true);
-    const res = await vote({ ...VALIDO, fingerprint: 'huella-distinta' },
-                           { cookie: `voter_id=${voterId}` });
+    const res = await vote(VALIDO, { cookie: `voter_id=${voterId}` });
     expect(res.status).toBe(409);
-    expect((await res.json()).message).toBe('Ya se ha registrado un voto desde este dispositivo.');
+    expect((await res.json()).message).toBe('Ya se ha registrado un voto desde este navegador.');
 
     const { results } = await env.DB.prepare('SELECT * FROM votes').all();
     expect(results).toHaveLength(1);
-  });
-
-  it('rechaza la misma huella sin cookie — incógnito no sirve (409)', async () => {
-    mockTurnstile(true);
-    await vote(VALIDO);
-    mockTurnstile(true);
-    const res = await vote(VALIDO);   // misma huella, sin cookie
-    expect(res.status).toBe(409);
-    const { results } = await env.DB.prepare('SELECT * FROM votes').all();
-    expect(results).toHaveLength(1);
-  });
-
-  it('acepta un voto sin huella — el bloqueador mató el CDN de FingerprintJS', async () => {
-    mockTurnstile(true);
-    const res = await vote({ ...VALIDO, fingerprint: '' });
-    expect(res.status).toBe(200);
-    expect((await res.json()).message).toBe('¡Gracias! Tu voto se ha registrado.');
-
-    const { results } = await env.DB.prepare('SELECT * FROM votes').all();
-    expect(results).toHaveLength(1);
-    expect(results[0].fingerprint).toBe('');
-  });
-
-  it('dos votantes distintos sin huella votan los dos (el índice único la excluye)', async () => {
-    // La prueba que cuenta: si idx_votes_fp no excluyese la huella vacía, el
-    // primer votante con el CDN bloqueado dejaría fuera a todos los demás.
-    mockTurnstile(true);
-    const uno = await vote({ ...VALIDO, fingerprint: '' }, { cookie: 'voter_id=votante-uno' });
-    expect(uno.status).toBe(200);
-
-    mockTurnstile(true);
-    const dos = await vote({ ...VALIDO, mini_code: '02', fingerprint: '' },
-                           { cookie: 'voter_id=votante-dos' });
-    expect(dos.status).toBe(200);
-    expect((await dos.json()).message).toBe('¡Gracias! Tu voto se ha registrado.');
-
-    const { results } = await env.DB.prepare("SELECT * FROM votes WHERE status='valid'").all();
-    expect(results).toHaveLength(2);
-    expect(results.map((r) => r.voter_id).sort()).toEqual(['votante-dos', 'votante-uno']);
   });
 
   it('sigue rechazando un segundo voto sin huella con la misma cookie (409)', async () => {
     mockTurnstile(true);
-    const uno = await vote({ ...VALIDO, fingerprint: '' }, { cookie: 'voter_id=votante-uno' });
+    const uno = await vote(VALIDO, { cookie: 'voter_id=votante-uno' });
     expect(uno.status).toBe(200);
 
     mockTurnstile(true);
-    const dos = await vote({ ...VALIDO, fingerprint: '' }, { cookie: 'voter_id=votante-uno' });
+    const dos = await vote(VALIDO, { cookie: 'voter_id=votante-uno' });
     expect(dos.status).toBe(409);
 
     const { results } = await env.DB.prepare("SELECT * FROM votes WHERE status='valid'").all();
@@ -228,12 +188,12 @@ describe('POST /api/vote', () => {
     const ipHash = await hashIp(ip, IP_SALT_DE_PRUEBAS);
     const filas = [];
     for (let i = 0; i < 50; i++) {
-      filas.push({ voter_id: `votante-cgnat-${i}`, fingerprint: `huella-cgnat-${i}`, ip_hash: ipHash });
+      filas.push({ voter_id: `votante-cgnat-${i}`, ip_hash: ipHash });
     }
     await seedVotes(filas);
 
     mockTurnstile(true);
-    const res = await vote({ ...VALIDO, fingerprint: 'huella-cgnat-51' }, { ip });
+    const res = await vote(VALIDO, { ip });
     expect(res.status).toBe(200);
     expect((await res.json()).message).toBe('¡Gracias! Tu voto se ha registrado.');
   });
@@ -243,12 +203,12 @@ describe('POST /api/vote', () => {
     const ipHash = await hashIp(ip, IP_SALT_DE_PRUEBAS);
     const filas = [];
     for (let i = 0; i < 200; i++) {
-      filas.push({ voter_id: `votante-abuso-${i}`, fingerprint: `huella-abuso-${i}`, ip_hash: ipHash });
+      filas.push({ voter_id: `votante-abuso-${i}`, ip_hash: ipHash });
     }
     await seedVotes(filas);
 
     mockTurnstile(true);
-    const res = await vote({ ...VALIDO, fingerprint: 'huella-desbordante' }, { ip });
+    const res = await vote(VALIDO, { ip });
     expect(res.status).toBe(429);
     expect((await res.json()).message).toBe('Demasiados intentos. Inténtalo más tarde.');
   });
@@ -259,14 +219,14 @@ describe('POST /api/vote', () => {
     const filas = [];
     for (let i = 0; i < 200; i++) {
       filas.push({
-        voter_id: `votante-anulado-${i}`, fingerprint: `huella-anulada-${i}`,
+        voter_id: `votante-anulado-${i}`,
         ip_hash: ipHash, status: 'annulled'
       });
     }
     await seedVotes(filas);
 
     mockTurnstile(true);
-    const res = await vote({ ...VALIDO, fingerprint: 'huella-tras-anulacion' }, { ip });
+    const res = await vote(VALIDO, { ip });
     expect(res.status).toBe(200);
     expect((await res.json()).message).toBe('¡Gracias! Tu voto se ha registrado.');
   });
@@ -288,15 +248,13 @@ describe('POST /api/vote', () => {
     expect(row.country).toBe('');
   });
 
-  it('dos peticiones simultáneas con la misma huella dejan una sola fila', async () => {
-    // Esto comprueba la afirmación central del §6: el índice único parcial es
-    // lo que resuelve la carrera, no el código de la aplicación.
+  it('dos peticiones simultáneas con la misma cookie dejan una sola fila', async () => {
+    // Comprueba la afirmación central del §6: el índice único parcial es lo
+    // que resuelve la carrera, no el código de la aplicación.
     mockTurnstile(true);
     mockTurnstile(true);
-    const [a, b] = await Promise.all([
-      vote({ ...VALIDO, fingerprint: 'huella-carrera' }),
-      vote({ ...VALIDO, fingerprint: 'huella-carrera' })
-    ]);
+    const cookie = 'voter_id=votante-carrera';
+    const [a, b] = await Promise.all([vote(VALIDO, { cookie }), vote(VALIDO, { cookie })]);
     expect([a.status, b.status].sort()).toEqual([200, 409]);
     const { results } = await env.DB.prepare("SELECT * FROM votes WHERE status='valid'").all();
     expect(results).toHaveLength(1);

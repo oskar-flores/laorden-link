@@ -15,7 +15,7 @@ const ABUSE_IP_LIMIT = 200;
 
 const MSG = {
   ok:          '¡Gracias! Tu voto se ha registrado.',
-  duplicate:   'Ya se ha registrado un voto desde este dispositivo.',
+  duplicate:   'Ya se ha registrado un voto desde este navegador.',
   closed:      'La votación no está abierta.',
   turnstile:   'No hemos podido verificar que eres una persona.',
   badCode:     'Obra no válida.',
@@ -76,10 +76,6 @@ export async function handleVote(request, env) {
   if (!isValidMiniCode(body.mini_code, env.MINI_COUNT)) {
     return json(400, false, MSG.badCode);
   }
-  // La huella puede venir vacía: su CDN está bloqueado por defecto en Firefox
-  // con ETP estricta y en uBlock Origin. A ese votante se le deduplica solo por
-  // la cookie voter_id (§8), que es la señal principal.
-  const fingerprint = typeof body.fingerprint === 'string' ? body.fingerprint.slice(0, 128) : '';
 
   const ip = request.headers.get('CF-Connecting-IP') || '0.0.0.0';
 
@@ -103,13 +99,13 @@ export async function handleVote(request, env) {
     return json(429, false, MSG.abuse, setCookie);
   }
 
-  // 7. Duplicados: la cookie primero (señal barata, evita falsos positivos
-  //    de huella en dispositivos idénticos, §8).
+  // 7. Duplicados: la cookie. La huella se retiró entera (spec 2026-09-22
+  //    §3.3): era por navegador, no por persona, y en la prueba del 22 de
+  //    septiembre diez votos reales dieron diez huellas distintas. No
+  //    deduplicó nada. El correo verificado la sustituye (Tarea 6).
   const dupe = await env.DB
-    .prepare(`SELECT 1 AS found FROM votes
-              WHERE status = 'valid'
-                AND (voter_id = ? OR (? != '' AND fingerprint = ?)) LIMIT 1`)
-    .bind(voterId, fingerprint, fingerprint).first();
+    .prepare("SELECT 1 AS found FROM votes WHERE status = 'valid' AND voter_id = ? LIMIT 1")
+    .bind(voterId).first();
   if (dupe) return json(409, false, MSG.duplicate, setCookie);
 
   // 8. Inserción. Los índices únicos parciales son la garantía real frente
@@ -118,12 +114,11 @@ export async function handleVote(request, env) {
   try {
     await env.DB.prepare(
       `INSERT INTO votes
-         (mini_code, voter_id, fingerprint, ip_hash, user_agent, country, asn, asn_name, created_at, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid')`
+         (mini_code, voter_id, ip_hash, user_agent, country, asn, asn_name, created_at, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'valid')`
     ).bind(
       body.mini_code,
       voterId,
-      fingerprint,
       ipHash,
       (request.headers.get('User-Agent') || '').slice(0, 512),
       cf.country || '',

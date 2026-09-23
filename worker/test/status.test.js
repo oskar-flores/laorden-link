@@ -11,14 +11,14 @@ beforeEach(async () => {
 
 async function insertVote(overrides = {}) {
   const v = {
-    mini_code: '07', voter_id: 'votante-1', fingerprint: 'huella-1',
+    mini_code: '07', voter_id: 'votante-1',
     ip_hash: 'hash-1', created_at: new Date().toISOString(), status: 'valid',
     ...overrides
   };
   await env.DB.prepare(
-    `INSERT INTO votes (mini_code, voter_id, fingerprint, ip_hash, created_at, status)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  ).bind(v.mini_code, v.voter_id, v.fingerprint, v.ip_hash, v.created_at, v.status).run();
+    `INSERT INTO votes (mini_code, voter_id, ip_hash, created_at, status)
+     VALUES (?, ?, ?, ?, ?)`
+  ).bind(v.mini_code, v.voter_id, v.ip_hash, v.created_at, v.status).run();
 }
 
 describe('GET /api/status', () => {

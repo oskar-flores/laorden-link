@@ -35,9 +35,9 @@ beforeEach(async () => {
 async function seed(rows) {
   for (const r of rows) {
     await env.DB.prepare(
-      `INSERT INTO votes (mini_code, voter_id, fingerprint, ip_hash, asn_name, created_at, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).bind(r.mini_code, r.voter_id, r.fingerprint, r.ip_hash,
+      `INSERT INTO votes (mini_code, voter_id, ip_hash, asn_name, created_at, status)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).bind(r.mini_code, r.voter_id, r.ip_hash,
            r.asn_name || '', r.created_at || new Date().toISOString(),
            r.status || 'valid').run();
   }
@@ -152,7 +152,7 @@ describe('GET /admin/results', () => {
   });
 
   it('no filtra el recuento en el cuerpo de una respuesta denegada', async () => {
-    await seed([{ mini_code: '07', voter_id: 'v1', fingerprint: 'f1', ip_hash: 'h1' }]);
+    await seed([{ mini_code: '07', voter_id: 'v1', ip_hash: 'h1' }]);
     const res = await SELF.fetch('https://www.laorden.org/admin/results');
     const body = await res.text();
     expect(body).not.toContain('07');
@@ -174,7 +174,7 @@ describe('GET /admin/results', () => {
 
   it('acepta un JWT válido: 200 y el recuento sellado aparece en la página', async () => {
     mockJwks();
-    await seed([{ mini_code: '07', voter_id: 'v1', fingerprint: 'f1', ip_hash: 'h1' }]);
+    await seed([{ mini_code: '07', voter_id: 'v1', ip_hash: 'h1' }]);
     const token = await firmar();
 
     const res = await conToken(token);
@@ -226,21 +226,21 @@ describe('GET /admin/results', () => {
     await seed([
       // f_volumen: más de 5 votos desde el mismo hash de IP, a obras distintas
       // (para no disparar también f_concentrado).
-      { mini_code: '01', voter_id: 'v-vol-1', fingerprint: 'f-vol-1', ip_hash: 'hash-volumen', asn_name: 'ISP Normal', created_at: hace(`1h`) },
-      { mini_code: '02', voter_id: 'v-vol-2', fingerprint: 'f-vol-2', ip_hash: 'hash-volumen', asn_name: 'ISP Normal', created_at: hace(`2h`) },
-      { mini_code: '03', voter_id: 'v-vol-3', fingerprint: 'f-vol-3', ip_hash: 'hash-volumen', asn_name: 'ISP Normal', created_at: hace(`3h`) },
-      { mini_code: '04', voter_id: 'v-vol-4', fingerprint: 'f-vol-4', ip_hash: 'hash-volumen', asn_name: 'ISP Normal', created_at: hace(`4h`) },
-      { mini_code: '05', voter_id: 'v-vol-5', fingerprint: 'f-vol-5', ip_hash: 'hash-volumen', asn_name: 'ISP Normal', created_at: hace(`5h`) },
-      { mini_code: '06', voter_id: 'v-vol-6', fingerprint: 'f-vol-6', ip_hash: 'hash-volumen', asn_name: 'ISP Normal', created_at: hace(`6h`) },
+      { mini_code: '01', voter_id: 'v-vol-1', ip_hash: 'hash-volumen', asn_name: 'ISP Normal', created_at: hace(`1h`) },
+      { mini_code: '02', voter_id: 'v-vol-2', ip_hash: 'hash-volumen', asn_name: 'ISP Normal', created_at: hace(`2h`) },
+      { mini_code: '03', voter_id: 'v-vol-3', ip_hash: 'hash-volumen', asn_name: 'ISP Normal', created_at: hace(`3h`) },
+      { mini_code: '04', voter_id: 'v-vol-4', ip_hash: 'hash-volumen', asn_name: 'ISP Normal', created_at: hace(`4h`) },
+      { mini_code: '05', voter_id: 'v-vol-5', ip_hash: 'hash-volumen', asn_name: 'ISP Normal', created_at: hace(`5h`) },
+      { mini_code: '06', voter_id: 'v-vol-6', ip_hash: 'hash-volumen', asn_name: 'ISP Normal', created_at: hace(`6h`) },
       // f_datacenter: el nombre de la red delata un proveedor cloud/hosting/VPN;
       // solo 2 votos, para no disparar también f_volumen ni f_concentrado.
-      { mini_code: '07', voter_id: 'v-dc-1', fingerprint: 'f-dc-1', ip_hash: 'hash-datacenter', asn_name: 'Acme Cloud Hosting' },
-      { mini_code: '08', voter_id: 'v-dc-2', fingerprint: 'f-dc-2', ip_hash: 'hash-datacenter', asn_name: 'Acme Cloud Hosting' },
+      { mini_code: '07', voter_id: 'v-dc-1', ip_hash: 'hash-datacenter', asn_name: 'Acme Cloud Hosting' },
+      { mini_code: '08', voter_id: 'v-dc-2', ip_hash: 'hash-datacenter', asn_name: 'Acme Cloud Hosting' },
       // f_concentrado: más de 3 votos, todos a la misma obra.
-      { mini_code: '09', voter_id: 'v-con-1', fingerprint: 'f-con-1', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal', created_at: hace(`1h`) },
-      { mini_code: '09', voter_id: 'v-con-2', fingerprint: 'f-con-2', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal', created_at: hace(`2h`) },
-      { mini_code: '09', voter_id: 'v-con-3', fingerprint: 'f-con-3', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal', created_at: hace(`3h`) },
-      { mini_code: '09', voter_id: 'v-con-4', fingerprint: 'f-con-4', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal', created_at: hace(`4h`) }
+      { mini_code: '09', voter_id: 'v-con-1', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal', created_at: hace(`1h`) },
+      { mini_code: '09', voter_id: 'v-con-2', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal', created_at: hace(`2h`) },
+      { mini_code: '09', voter_id: 'v-con-3', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal', created_at: hace(`3h`) },
+      { mini_code: '09', voter_id: 'v-con-4', ip_hash: 'hash-concentrado', asn_name: 'ISP Normal', created_at: hace(`4h`) }
     ]);
 
     mockJwks();
@@ -260,10 +260,10 @@ describe('GET /admin/results', () => {
     // Sin esta columna la página dice "anula por id" y no enseña ni un id:
     // quien ve un origen sospechoso no tiene forma de llegar al comando.
     await seed([
-      { mini_code: '09', voter_id: 'v-1', fingerprint: 'f-1', ip_hash: 'hash-ids', asn_name: 'ISP Normal' },
-      { mini_code: '09', voter_id: 'v-2', fingerprint: 'f-2', ip_hash: 'hash-ids', asn_name: 'ISP Normal' },
-      { mini_code: '09', voter_id: 'v-3', fingerprint: 'f-3', ip_hash: 'hash-ids', asn_name: 'ISP Normal' },
-      { mini_code: '09', voter_id: 'v-4', fingerprint: 'f-4', ip_hash: 'hash-ids', asn_name: 'ISP Normal' }
+      { mini_code: '09', voter_id: 'v-1', ip_hash: 'hash-ids', asn_name: 'ISP Normal' },
+      { mini_code: '09', voter_id: 'v-2', ip_hash: 'hash-ids', asn_name: 'ISP Normal' },
+      { mini_code: '09', voter_id: 'v-3', ip_hash: 'hash-ids', asn_name: 'ISP Normal' },
+      { mini_code: '09', voter_id: 'v-4', ip_hash: 'hash-ids', asn_name: 'ISP Normal' }
     ]);
 
     mockJwks();
@@ -283,7 +283,7 @@ describe('GET /admin/results', () => {
   it('una obra con img en obras.json sale con miniatura enlazada a la imagen grande (T3)', async () => {
     mockJwks();
     mockObras([{ code: '07', img: 'obras/07.webp', thumb: 'obras/07-thumb.webp' }]);
-    await seed([{ mini_code: '07', voter_id: 'v1', fingerprint: 'f1', ip_hash: 'h1' }]);
+    await seed([{ mini_code: '07', voter_id: 'v1', ip_hash: 'h1' }]);
 
     const res = await conToken(await firmar());
     expect(res.status).toBe(200);
@@ -305,7 +305,7 @@ describe('GET /admin/results', () => {
     // base: si algo lo colase, la página no puede reproducirlo tal cual.
     const codigoRaro = '07"><script>x</script>';
     mockObras([{ code: codigoRaro, img: 'obras/raro.webp' }]);
-    await seed([{ mini_code: codigoRaro, voter_id: 'v1', fingerprint: 'f1', ip_hash: 'h1' }]);
+    await seed([{ mini_code: codigoRaro, voter_id: 'v1', ip_hash: 'h1' }]);
 
     const res = await conToken(await firmar());
     expect(res.status).toBe(200);
@@ -321,7 +321,7 @@ describe('GET /admin/results', () => {
     // 08 no tiene "img" en el manifiesto, como las 22 obras de hoy en
     // concurso/obras.json hasta que lleguen las fotos.
     mockObras([{ code: '08' }]);
-    await seed([{ mini_code: '08', voter_id: 'v1', fingerprint: 'f1', ip_hash: 'h1' }]);
+    await seed([{ mini_code: '08', voter_id: 'v1', ip_hash: 'h1' }]);
 
     const res = await conToken(await firmar());
     expect(res.status).toBe(200);
@@ -338,8 +338,8 @@ describe('GET /admin/results', () => {
     // con fetchMock.disableNetConnect() activo, ese fetch lanza, y cargarObras
     // debe atraparlo y devolver un índice vacío sin tumbar la página.
     await seed([
-      { mini_code: '07', voter_id: 'v1', fingerprint: 'f1', ip_hash: 'h1' },
-      { mini_code: '12', voter_id: 'v2', fingerprint: 'f2', ip_hash: 'h2' }
+      { mini_code: '07', voter_id: 'v1', ip_hash: 'h1' },
+      { mini_code: '12', voter_id: 'v2', ip_hash: 'h2' }
     ]);
 
     const res = await conToken(await firmar());
@@ -359,9 +359,9 @@ describe('GET /admin/results', () => {
     // otras tres banderas no lo ven: 3 votos no llegan a f_volumen (>5) y,
     // al ir a obras distintas, tampoco a f_concentrado.
     await seed([
-      { mini_code: '10', voter_id: 'v-r-1', fingerprint: 'f-r-1', ip_hash: 'hash-rafaga', asn_name: 'ISP Normal', created_at: hace('5m') },
-      { mini_code: '06', voter_id: 'v-r-2', fingerprint: 'f-r-2', ip_hash: 'hash-rafaga', asn_name: 'ISP Normal', created_at: hace('3m') },
-      { mini_code: '07', voter_id: 'v-r-3', fingerprint: 'f-r-3', ip_hash: 'hash-rafaga', asn_name: 'ISP Normal', created_at: hace('1m') }
+      { mini_code: '10', voter_id: 'v-r-1', ip_hash: 'hash-rafaga', asn_name: 'ISP Normal', created_at: hace('5m') },
+      { mini_code: '06', voter_id: 'v-r-2', ip_hash: 'hash-rafaga', asn_name: 'ISP Normal', created_at: hace('3m') },
+      { mini_code: '07', voter_id: 'v-r-3', ip_hash: 'hash-rafaga', asn_name: 'ISP Normal', created_at: hace('1m') }
     ]);
 
     mockJwks();
@@ -379,9 +379,9 @@ describe('GET /admin/results', () => {
     // Sale en la tabla porque repite origen, pero sin bandera: que la
     // organización lo vea no es lo mismo que acusarla.
     await seed([
-      { mini_code: '10', voter_id: 'v-f-1', fingerprint: 'f-f-1', ip_hash: 'hash-familia', asn_name: 'ISP Normal', created_at: hace('5h') },
-      { mini_code: '06', voter_id: 'v-f-2', fingerprint: 'f-f-2', ip_hash: 'hash-familia', asn_name: 'ISP Normal', created_at: hace('3h') },
-      { mini_code: '07', voter_id: 'v-f-3', fingerprint: 'f-f-3', ip_hash: 'hash-familia', asn_name: 'ISP Normal', created_at: hace('1h') }
+      { mini_code: '10', voter_id: 'v-f-1', ip_hash: 'hash-familia', asn_name: 'ISP Normal', created_at: hace('5h') },
+      { mini_code: '06', voter_id: 'v-f-2', ip_hash: 'hash-familia', asn_name: 'ISP Normal', created_at: hace('3h') },
+      { mini_code: '07', voter_id: 'v-f-3', ip_hash: 'hash-familia', asn_name: 'ISP Normal', created_at: hace('1h') }
     ]);
 
     mockJwks();
@@ -395,8 +395,8 @@ describe('GET /admin/results', () => {
 
   it('lista un origen con dos votos y ninguna bandera, que antes no aparecía', async () => {
     await seed([
-      { mini_code: '03', voter_id: 'v-d-1', fingerprint: 'f-d-1', ip_hash: 'hash-dosvotos', asn_name: 'ISP Normal', created_at: hace('4h') },
-      { mini_code: '11', voter_id: 'v-d-2', fingerprint: 'f-d-2', ip_hash: 'hash-dosvotos', asn_name: 'ISP Normal', created_at: hace('1h') }
+      { mini_code: '03', voter_id: 'v-d-1', ip_hash: 'hash-dosvotos', asn_name: 'ISP Normal', created_at: hace('4h') },
+      { mini_code: '11', voter_id: 'v-d-2', ip_hash: 'hash-dosvotos', asn_name: 'ISP Normal', created_at: hace('1h') }
     ]);
 
     mockJwks();
@@ -410,7 +410,7 @@ describe('GET /admin/results', () => {
 
   it('no lista los orígenes de un solo voto: son la inmensa mayoría y ahogarían la tabla', async () => {
     await seed([
-      { mini_code: '03', voter_id: 'v-s-1', fingerprint: 'f-s-1', ip_hash: 'hash-solitario', asn_name: 'ISP Normal' }
+      { mini_code: '03', voter_id: 'v-s-1', ip_hash: 'hash-solitario', asn_name: 'ISP Normal' }
     ]);
 
     mockJwks();
@@ -425,7 +425,7 @@ describe('GET /admin/results', () => {
 
   it('sí lista un voto único si viene de datacenter: ahí el volumen no es la señal', async () => {
     await seed([
-      { mini_code: '03', voter_id: 'v-dc', fingerprint: 'f-dc', ip_hash: 'hash-solocloud', asn_name: 'Acme Cloud Hosting' }
+      { mini_code: '03', voter_id: 'v-dc', ip_hash: 'hash-solocloud', asn_name: 'Acme Cloud Hosting' }
     ]);
 
     mockJwks();
