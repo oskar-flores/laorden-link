@@ -96,22 +96,18 @@ export async function handleVote(request, env) {
     return json(400, false, MSG.codigoMal);
   }
 
-  const maxIntentos = Number(env.CODIGO_INTENTOS);
-  if (fila.intentos >= maxIntentos) {
-    // Debería estar ya marcado como usado; si llega aquí, se cierra.
-    await env.DB.prepare('UPDATE codigos SET usado_en = ? WHERE id = ?')
-      .bind(ahora.toISOString(), fila.id).run();
-    return json(400, false, MSG.codigoMal);
-  }
-
   const esperado = await hashCodigo(env.IP_SALT, emailNorm, codigo);
   if (esperado !== fila.codigo_hash) {
-    // A CODIGO_INTENTOS fallos el código muere y hay que pedir otro: es lo
-    // que convierte un millón de combinaciones en algo que no se recorre.
-    const intentos = fila.intentos + 1;
+    const maxIntentos = Number(env.CODIGO_INTENTOS);
+    // Atómico: la cuenta y el cierre van en la MISMA UPDATE, para que fallos
+    // simultáneos no se pisen el contador el uno al otro (lost update) ni
+    // reabran un código que otra petición concurrente ya cerró (nunca se
+    // escribe usado_en = NULL a ciegas, solo se actualiza si seguía vivo).
     await env.DB.prepare(
-      'UPDATE codigos SET intentos = ?, usado_en = ? WHERE id = ?'
-    ).bind(intentos, intentos >= maxIntentos ? ahora.toISOString() : null, fila.id).run();
+      `UPDATE codigos SET intentos = intentos + 1,
+              usado_en = CASE WHEN intentos + 1 >= ? THEN ? ELSE usado_en END
+       WHERE id = ? AND usado_en IS NULL`
+    ).bind(maxIntentos, ahora.toISOString(), fila.id).run();
     return json(400, false, MSG.codigoMal);
   }
 
