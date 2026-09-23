@@ -36,13 +36,13 @@ describe('enviarCodigo', () => {
 
   // Fallar cerrado (§7), igual que se trata hoy IP_SALT.
   it('devuelve false si no hay binding, sin lanzar', async () => {
-    expect(await enviarCodigo({ ...env, ...VARS }, 'a@b.com', '123456')).toBe(false);
+    expect(await enviarCodigo({ ...env, ...VARS, EMAIL: undefined }, 'a@b.com', '123456')).toBe(false);
     expect(await enviarCodigo({ ...env, ...VARS, EMAIL: {} }, 'a@b.com', '123456')).toBe(false);
   });
 
   it('devuelve false si falta EMAIL_REMITENTE', async () => {
     const EMAIL = espia();
-    expect(await enviarCodigo({ ...env, CODIGO_MINUTOS: '10', EMAIL }, 'a@b.com', '123456')).toBe(false);
+    expect(await enviarCodigo({ ...env, CODIGO_MINUTOS: '10', EMAIL, EMAIL_REMITENTE: undefined }, 'a@b.com', '123456')).toBe(false);
     expect(EMAIL.enviados).toHaveLength(0);
   });
 

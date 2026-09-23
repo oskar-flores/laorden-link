@@ -34,6 +34,7 @@ CODIGOS_POR_HORA = "3"      # por dirección — el freno antimailbomb
 MAX_CORREOS_DIA  = "400"    # techo global: lo que impide que un fallo queme la
                             # cuota del mes y la reputación del dominio días
                             # antes de que abra la votación
+EMAIL_REMITENTE  = "votacion@laorden.org"
 
 # ── Entorno de pruebas: test.laorden.org ─────────────────────────────────────
 #
@@ -89,3 +90,4 @@ CODIGO_MINUTOS   = "10"
 CODIGO_INTENTOS  = "5"
 CODIGOS_POR_HORA = "3"
 MAX_CORREOS_DIA  = "400"
+EMAIL_REMITENTE  = "votacion@laorden.org"
