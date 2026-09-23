@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { page, TALLY, RISK, buildObrasIndex } from '../worker/src/routes/admin.js';
+import { page, TALLY, RISK, ASISTIDOS, buildObrasIndex } from '../worker/src/routes/admin.js';
 
 const raiz = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -30,15 +30,16 @@ for (const fichero of readdirSync(dirMigraciones).sort()) {
 
 const meter = db.prepare(
   `INSERT INTO votes (mini_code, voter_id, ip_hash, user_agent,
-                      country, asn, asn_name, created_at, status)
-   VALUES (?, ?, ?, '', 'ES', 12430, ?, ?, 'valid')`
+                      country, asn, asn_name, created_at, status, email, email_norm)
+   VALUES (?, ?, ?, '', 'ES', 12430, ?, ?, 'valid', ?, ?)`
 );
 
 let n = 0;
 function votar(obra, hash, red) {
   n += 1;
   const cuando = new Date(Date.UTC(2026, 9, 12, 10, n % 60, 0)).toISOString();
-  meter.run(obra, `votante-${n}`, hash, red, cuando);
+  const correo = `votante${n}@ejemplo.com`;
+  meter.run(obra, `votante-${n}`, hash, red, cuando, correo, correo);
 }
 
 // Reparto normal: la mayoría de la gente vota una vez desde su casa.
@@ -52,8 +53,21 @@ for (const obra of ['01', '02', '03', '04', '05', '06']) votar(obra, 'hash-volum
 for (const obra of ['04', '06']) votar(obra, 'hash-datacenter', 'DigitalOcean Cloud Hosting');
 for (let i = 0; i < 5; i += 1) votar('07', 'hash-concentrado', 'Vodafone');
 
+// Un voto asistido, para que se vea la sección del §10 sin tener que
+// inventársela mirando el código.
+db.prepare(
+  `INSERT INTO votes (mini_code, voter_id, ip_hash, user_agent, country, asn,
+                      asn_name, created_at, status, email, email_norm, origen, nota)
+   VALUES ('03', 'asistido-ejemplo', '', '', 'ES', NULL, '',
+           '2026-10-12T18:30:00.000Z', 'valid',
+           'ejemplo@ejemplo.com', 'ejemplo@ejemplo.com', 'asistido',
+           'no le llegaba el código, avisó por WhatsApp el 12/10 — ejemplo')`
+).run();
+
 const tally = db.prepare(TALLY).all();
 const risk = db.prepare(RISK).all();
 const totals = db.prepare("SELECT COUNT(*) AS n FROM votes WHERE status = 'valid'").get().n;
 
-process.stdout.write(page(totals, tally, risk, 'ejemplo@laorden.org', obras));
+const asistidos = db.prepare(ASISTIDOS).all();
+process.stdout.write(page(totals, tally, risk, 'ejemplo@laorden.org', obras,
+                          { enviados: 37, techo: 400 }, asistidos));

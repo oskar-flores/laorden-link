@@ -30,6 +30,7 @@ export const RISK = `
   SELECT ip_hash, asn_name, COUNT(*) AS votos,
          COUNT(DISTINCT mini_code) AS obras_distintas,
          GROUP_CONCAT(id) AS ids,
+         GROUP_CONCAT(email, ' · ') AS correos,
          MIN(created_at) AS primero, MAX(created_at) AS ultimo,
          (COUNT(*) > 5)                                   AS f_volumen,
          (asn_name LIKE '%Hosting%' OR asn_name LIKE '%Cloud%'
@@ -43,6 +44,15 @@ export const RISK = `
   HAVING votos > 1 OR f_datacenter
   ORDER BY (f_volumen OR f_datacenter OR f_concentrado OR f_rafaga) DESC,
            votos DESC, ultimo DESC`;
+
+// Votos metidos a mano por la organización (§10). Se enseñan enteros, con su
+// nota: la organización acaba de darse el poder de insertar votos, y ese
+// poder tiene que verse en la misma página que enseña el recuento. Invisible,
+// no es auditable: es solo su palabra.
+export const ASISTIDOS = `
+  SELECT id, mini_code, email, created_at, nota FROM votes
+  WHERE status = 'valid' AND origen = 'asistido'
+  ORDER BY created_at`;
 
 /**
  * Construye, a partir del manifiesto de obras.json ya parseado, un índice
@@ -68,7 +78,8 @@ export function buildObrasIndex(lista, baseUrl) {
   return indice;
 }
 
-export function page(totals, tally, risk, email, obras = new Map()) {
+export function page(totals, tally, risk, email, obras = new Map(),
+                     cuota = { enviados: 0, techo: 0 }, asistidos = []) {
   const banderas = (r) => [
     r.f_volumen ? 'volumen' : null,
     r.f_datacenter ? 'datacenter' : null,
@@ -100,7 +111,9 @@ export function page(totals, tally, risk, email, obras = new Map()) {
                display:block; margin-top:4px; border-radius:4px; }
 </style></head><body>
 <h1>Resultados I Concurso de Pintura</h1>
-<p class="aviso">Sesión: ${esc(email)} · Votos válidos: <strong>${totals}</strong></p>
+<p class="aviso">Sesión: ${esc(email)} · Votos válidos: <strong>${totals}</strong>
+ · Votos asistidos: ${asistidos.length} de ${totals}.
+ · Códigos enviados hoy: ${cuota.enviados} de ${cuota.techo}.</p>
 
 <h2>Recuento</h2>
 <table><tr><th>Obra</th><th>Votos</th></tr>
@@ -114,12 +127,33 @@ de la misma casa. <strong>ráfaga</strong> es la más discriminante — varios
 votos seguidos en minutos desde un mismo origen es lo que hace una sola
 persona cambiando de navegador.</p>
 ${risk.length === 0 ? '<p class="aviso">Ningún origen repite voto.</p>' : `
-<table><tr><th>Hash IP</th><th>Red</th><th>Votos</th><th>Obras</th><th>Primero</th><th>Último</th><th>Banderas</th><th>IDs</th></tr>
+<table><tr><th>Hash IP</th><th>Red</th><th>Correos</th><th>Votos</th><th>Obras</th><th>Primero</th><th>Último</th><th>Banderas</th><th>IDs</th></tr>
 ${risk.map((r) => `<tr>
   <td><code>${esc(String(r.ip_hash).slice(0, 12))}…</code></td>
-  <td>${esc(r.asn_name)}</td><td>${r.votos}</td><td>${r.obras_distintas}</td>
+  <td>${esc(r.asn_name)}</td>
+  <td>${esc(r.correos)}</td>
+  <td>${r.votos}</td><td>${r.obras_distintas}</td>
   <td>${esc(r.primero)}</td><td>${esc(r.ultimo)}</td><td>${esc(banderas(r))}</td>
   <td><code>${esc(r.ids)}</code></td>
+</tr>`).join('')}
+</table>`}
+
+<p class="aviso">Las direcciones de la columna <strong>Correos</strong> son el registro
+auditable del §10: tres votos de un mismo origen enseñan las tres
+direcciones, y una persona ve al instante si son tres hermanos o tres alias
+de la misma. Ninguna bandera intenta detectar alias por parecido de nombre:
+sería frágil, daría falsos positivos con apellidos comunes, y quien lee tres
+direcciones lo ve solo.</p>
+
+<h2>Votos asistidos</h2>
+<p class="aviso">Votos que la organización registró a mano con
+<code>scripts/voto-asistido.sh</code> porque el código no llegó (§10 de las
+bases). Cuentan en el recuento de arriba y salen aquí con su motivo.</p>
+${asistidos.length === 0 ? '<p class="aviso">Ninguno.</p>' : `
+<table><tr><th>ID</th><th>Obra</th><th>Correo</th><th>Fecha</th><th>Nota</th></tr>
+${asistidos.map((r) => `<tr>
+  <td>${r.id}</td><td>#${esc(r.mini_code)}</td><td>${esc(r.email)}</td>
+  <td>${esc(r.created_at)}</td><td>${esc(r.nota)}</td>
 </tr>`).join('')}
 </table>`}
 
@@ -164,14 +198,22 @@ export async function handleAdminResults(request, env) {
     });
   }
 
-  const [tally, risk, totals, obras] = await Promise.all([
+  const hoy = new Date().toISOString().slice(0, 10) + 'T00:00:00.000Z';
+
+  const [tally, risk, totals, obras, enviados, asistidos] = await Promise.all([
     env.DB.prepare(TALLY).all(),
     env.DB.prepare(RISK).all(),
     env.DB.prepare("SELECT COUNT(*) AS n FROM votes WHERE status = 'valid'").first(),
-    cargarObras(request)
+    cargarObras(request),
+    env.DB.prepare('SELECT COUNT(*) AS n FROM codigos WHERE created_at >= ?').bind(hoy).first(),
+    env.DB.prepare(ASISTIDOS).all()
   ]);
 
-  return new Response(page(totals.n, tally.results, risk.results, auth.email, obras), {
+  return new Response(page(
+    totals.n, tally.results, risk.results, auth.email, obras,
+    { enviados: enviados.n, techo: Number(env.MAX_CORREOS_DIA) || 0 },
+    asistidos.results
+  ), {
     headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }
   });
 }

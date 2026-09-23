@@ -35,11 +35,14 @@ beforeEach(async () => {
 async function seed(rows) {
   for (const r of rows) {
     await env.DB.prepare(
-      `INSERT INTO votes (mini_code, voter_id, ip_hash, asn_name, created_at, status)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO votes (mini_code, voter_id, ip_hash, asn_name, created_at, status,
+                          email, email_norm, origen, nota)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(r.mini_code, r.voter_id, r.ip_hash,
            r.asn_name || '', r.created_at || new Date().toISOString(),
-           r.status || 'valid').run();
+           r.status || 'valid',
+           r.email || '', r.email_norm || (r.email || '').toLowerCase(),
+           r.origen || 'web', r.nota || '').run();
   }
 }
 
@@ -116,6 +119,16 @@ function conToken(token) {
   return SELF.fetch('https://www.laorden.org/admin/results', {
     headers: { 'Cf-Access-Jwt-Assertion': token }
   });
+}
+
+/**
+ * Pide /admin/results con un JWT válido y devuelve el cuerpo ya como texto.
+ * Atajo para las pruebas que solo miran el HTML resultante, no la respuesta.
+ */
+async function panel() {
+  const token = await firmar();
+  const res = await conToken(token);
+  return res.text();
 }
 
 /**
@@ -449,5 +462,99 @@ describe('GET /admin/results', () => {
     });
     const resultado = await verifyAccessJwt(req, { ACCESS_TEAM_DOMAIN: '', ACCESS_AUD: '' });
     expect(resultado.ok).toBe(false);
+  });
+
+  it('enseña la línea de cuota con el techo configurado', async () => {
+    mockJwks();
+    const ahora = new Date().toISOString();
+    const stmt = env.DB.prepare(
+      `INSERT INTO codigos (email_norm, codigo_hash, expira_en, ip_hash, created_at)
+       VALUES (?, 'h', ?, 'i', ?)`);
+    for (let i = 0; i < 37; i++) await stmt.bind(`x${i}@ejemplo.com`, ahora, ahora).run();
+
+    const body = await panel();          // helper existente que hace la petición con JWT válido
+    expect(body).toContain('Códigos enviados hoy: 37 de 400.');
+  });
+
+  it('la cuota cuenta solo los de HOY', async () => {
+    mockJwks();
+    const ayer = new Date(Date.now() - 36 * 3600_000).toISOString();
+    await env.DB.prepare(
+      `INSERT INTO codigos (email_norm, codigo_hash, expira_en, ip_hash, created_at)
+       VALUES ('viejo@ejemplo.com', 'h', ?, 'i', ?)`).bind(ayer, ayer).run();
+
+    const body = await panel();
+    expect(body).toContain('Códigos enviados hoy: 0 de 400.');
+  });
+
+  it('enseña las direcciones en la tabla de orígenes', async () => {
+    mockJwks();
+    await seed([
+      { mini_code: '07', voter_id: 'v1', ip_hash: 'hash-hermanos', email: 'ana@ejemplo.com' },
+      { mini_code: '03', voter_id: 'v2', ip_hash: 'hash-hermanos', email: 'luis@ejemplo.com' },
+      { mini_code: '05', voter_id: 'v3', ip_hash: 'hash-hermanos', email: 'eva@ejemplo.com' }
+    ]);
+    const body = await panel();
+    // El registro auditable que pidió la asociación: tres votos de un mismo
+    // origen enseñan las tres direcciones, y una persona ve al instante si son
+    // tres hermanos o tres alias.
+    expect(body).toContain('ana@ejemplo.com');
+    expect(body).toContain('luis@ejemplo.com');
+    expect(body).toContain('eva@ejemplo.com');
+  });
+
+  it('escapa el HTML de las direcciones', async () => {
+    mockJwks();
+    await seed([
+      { mini_code: '07', voter_id: 'v1', ip_hash: 'h', email: '<script>x</script>@e.com' },
+      { mini_code: '03', voter_id: 'v2', ip_hash: 'h', email: 'b@e.com' }
+    ]);
+    const body = await panel();
+    expect(body).not.toContain('<script>x</script>');
+    expect(body).toContain('&lt;script&gt;');
+  });
+
+  it('cuenta y lista los votos asistidos en su propia línea', async () => {
+    mockJwks();
+    await seed([
+      { mini_code: '07', voter_id: 'v-web', ip_hash: 'h1', email: 'web@ejemplo.com' },
+      { mini_code: '03', voter_id: 'asistido-abc', ip_hash: '', email: 'sinacceso@ejemplo.com',
+        origen: 'asistido', nota: 'no le llegaba el código, avisó por WhatsApp el 12/10 — Oskar' }
+    ]);
+    const body = await panel();
+    // La organización acaba de darse el poder de insertar votos a mano, y ese
+    // poder tiene que verse en la misma página que enseña el recuento.
+    expect(body).toContain('Votos asistidos: 1 de 2.');
+    expect(body).toContain('sinacceso@ejemplo.com');
+    expect(body).toContain('no le llegaba el código, avisó por WhatsApp el 12/10');
+  });
+
+  it('sin votos asistidos lo dice, en vez de callar', async () => {
+    mockJwks();
+    await seed([{ mini_code: '07', voter_id: 'v1', ip_hash: 'h', email: 'a@e.com' }]);
+    const body = await panel();
+    expect(body).toContain('Votos asistidos: 0 de 1.');
+  });
+
+  it('los votos asistidos cuentan en el recuento', async () => {
+    mockJwks();
+    await seed([
+      { mini_code: '07', voter_id: 'v1', ip_hash: 'h', email: 'a@e.com' },
+      { mini_code: '07', voter_id: 'asistido-1', ip_hash: '', email: 'b@e.com', origen: 'asistido', nota: 'x' }
+    ]);
+    const body = await panel();
+    expect(body).toMatch(/#07[\s\S]{0,400}?<td>2<\/td>/);
+  });
+
+  it('un voto asistido anulado no cuenta ni aparece', async () => {
+    mockJwks();
+    await seed([
+      { mini_code: '07', voter_id: 'v1', ip_hash: 'h', email: 'a@e.com' },
+      { mini_code: '07', voter_id: 'asistido-1', ip_hash: '', email: 'anulado@e.com',
+        origen: 'asistido', nota: 'x', status: 'annulled' }
+    ]);
+    const body = await panel();
+    expect(body).toContain('Votos asistidos: 0 de 1.');
+    expect(body).not.toContain('anulado@e.com');
   });
 });
