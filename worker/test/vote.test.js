@@ -346,6 +346,31 @@ describe('POST /api/vote', () => {
     expect((await env.DB.prepare("SELECT COUNT(*) AS n FROM votes WHERE status='valid'").first()).n).toBe(1);
   });
 
+  it('un código correcto dentro de una ráfaga concurrente no burla el límite de intentos', async () => {
+    // Esto es lo que de verdad expuso el hueco de las rondas 2/3: no basta con
+    // que el código bueno llegue DESPUÉS de una ráfaga de fallos (eso ya lo
+    // rechazaba el código viejo) — tiene que ir DENTRO de la misma ráfaga
+    // concurrente, compitiendo por la reserva de intento antes de que nadie
+    // sepa quién acierta. Con CODIGO_INTENTOS=5, seis fallos ya agotan el
+    // cupo: si el bueno llega el séptimo de la misma ráfaga y aun así cuela,
+    // es exactamente el fallo de la ronda 2 (comparaba el hash contra una
+    // fila leída antes de reservar sitio).
+    const id = await sembrarCodigo();
+    const guesses = [];
+    for (let i = 0; i < 6; i++) guesses.push(vote({ ...VALIDO, codigo: String(i).padStart(6, '0') }));
+    guesses.push(vote(VALIDO)); // el código correcto, el séptimo de la ráfaga
+    const resultados = await Promise.all(guesses);
+
+    const exitos = resultados.filter((r) => r.status === 200);
+    expect(exitos.length).toBe(0);
+
+    const fila = await env.DB.prepare('SELECT intentos FROM codigos WHERE id = ?').bind(id).first();
+    expect(fila.intentos).toBeLessThanOrEqual(5);
+
+    const { n } = await env.DB.prepare("SELECT COUNT(*) AS n FROM votes WHERE status='valid'").first();
+    expect(n).toBe(exitos.length);
+  });
+
   it('rechaza GET en la ruta de voto', async () => {
     expect((await SELF.fetch('https://www.laorden.org/api/vote')).status).toBe(404);
   });
