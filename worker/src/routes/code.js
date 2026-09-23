@@ -17,6 +17,7 @@ const MSG = {
   enviado:     'Si la dirección es correcta, te hemos enviado un código.',
   correoMal:   'Escribe una dirección de correo válida.',
   demasiados:  'Has pedido demasiados códigos. Espera una hora e inténtalo de nuevo.',
+  demasiadosIp: 'Hay mucho tráfico desde tu red ahora mismo. Prueba de nuevo en un rato, o escribe a laordenaslu@gmail.com si el problema persiste.',
   turnstile:   'No hemos podido verificar que eres una persona.',
   cerrada:     'La votación no está abierta.',
   falloEnvio:  'No hemos podido enviarte el código. Escribe a laordenaslu@gmail.com y te ayudamos a votar.',
@@ -90,7 +91,7 @@ export async function handleCode(request, env) {
     .prepare('SELECT COUNT(*) AS n FROM codigos WHERE ip_hash = ? AND created_at > ?')
     .bind(ipHash, desde).first();
   if (porIp && porIp.n >= CODIGOS_POR_IP_HORA) {
-    return json(429, false, MSG.demasiados);
+    return json(429, false, MSG.demasiadosIp);
   }
 
   // 5. Techo global del día. Es el más importante de los cinco mandos: lo que

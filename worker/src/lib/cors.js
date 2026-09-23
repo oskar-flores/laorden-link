@@ -3,8 +3,8 @@
  * el Worker comparte dominio con la página y no se emite ninguna cabecera.
  *
  * Aviso: con CORS_ORIGIN activo la cookie voter_id no viaja entre orígenes
- * (SameSite=Lax). En local la deduplicación por cookie no funcionará; la de
- * huella sí. Es una limitación asumida, no se relajan las banderas de la cookie.
+ * (SameSite=Lax). En local la deduplicación por cookie no funcionará. Es una
+ * limitación asumida, no se relajan las banderas de la cookie.
  */
 function allowedOrigin(request, env) {
   const origin = request.headers.get('Origin');

@@ -126,7 +126,8 @@ export async function handleVote(request, env) {
   const ipHash = await hashIp(ip, env.IP_SALT);
   const setCookie = { 'Set-Cookie': serialiseVoterCookie(voterId) };
 
-  /** El código está gastado desde el momento en que se acierta, salga lo que salga después. */
+  /** El código está gastado desde el momento en que se acierta — salvo que corte antes
+   *  el cortafuegos de abuso (paso 7): ese 429 devuelve sin tocar la fila. */
   const gastarCodigo = () => env.DB
     .prepare('UPDATE codigos SET usado_en = ? WHERE id = ?')
     .bind(ahora.toISOString(), fila.id).run();

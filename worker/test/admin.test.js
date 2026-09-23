@@ -368,8 +368,8 @@ describe('GET /admin/results', () => {
   it('marca f_rafaga: tres votos del mismo origen en minutos, aunque vayan a obras distintas', async () => {
     // El caso real que destapó esta bandera: un iPhone votando con Safari,
     // luego con Brave, luego en ventana privada, en menos de cinco minutos.
-    // La cookie y la huella son POR NAVEGADOR, así que no lo frenan, y las
-    // otras tres banderas no lo ven: 3 votos no llegan a f_volumen (>5) y,
+    // La cookie es POR NAVEGADOR, así que no lo frena, y las otras tres
+    // banderas no lo ven: 3 votos no llegan a f_volumen (>5) y,
     // al ir a obras distintas, tampoco a f_concentrado.
     await seed([
       { mini_code: '10', voter_id: 'v-r-1', ip_hash: 'hash-rafaga', asn_name: 'ISP Normal', created_at: hace('5m') },

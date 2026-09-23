@@ -11,9 +11,9 @@ export const TALLY = `
 // Votos que caben en esta ventana, desde un mismo origen, para que cuente
 // como ráfaga. Una familia que vota desde el mismo wifi lo hace a lo largo de
 // la tarde; una sola persona cambiando de navegador (Safari, Brave, ventana
-// privada) lo hace en cuatro minutos, porque la cookie y la huella son POR
-// NAVEGADOR y no la frenan. Es la bandera que separa esos dos casos, y la
-// única que mira el tiempo.
+// privada) lo hace en cuatro minutos, porque la cookie es POR NAVEGADOR y no
+// la frena. Es la bandera que separa esos dos casos, y la única que mira el
+// tiempo.
 const RAFAGA_VOTOS = 3;
 const RAFAGA_MINUTOS = 10;
 
@@ -39,7 +39,7 @@ export const RISK = `
          (COUNT(*) >= ${RAFAGA_VOTOS} AND
           (julianday(MAX(created_at)) - julianday(MIN(created_at))) * 1440
             < ${RAFAGA_MINUTOS})                          AS f_rafaga
-  FROM votes WHERE status = 'valid'
+  FROM votes WHERE status = 'valid' AND origen = 'web'
   GROUP BY ip_hash, asn_name
   HAVING votos > 1 OR f_datacenter
   ORDER BY (f_volumen OR f_datacenter OR f_concentrado OR f_rafaga) DESC,

@@ -19,7 +19,7 @@ CREATE UNIQUE INDEX idx_votes_email ON votes(email_norm)
   WHERE status = 'valid' AND email_norm != '';
 
 -- El índice va primero: SQLite no deja soltar una columna referenciada por un
--- índice. (PLAN B: deja estas dos líneas comentadas salvo la primera.)
+-- índice.
 DROP INDEX idx_votes_fp;
 ALTER TABLE votes DROP COLUMN fingerprint;
 
