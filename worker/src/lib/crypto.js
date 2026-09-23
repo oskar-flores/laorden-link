@@ -28,3 +28,26 @@ export async function hashIp(ip, salt) {
 export function newVoterId() {
   return crypto.randomUUID();
 }
+
+/**
+ * HMAC-SHA256 en hexadecimal.
+ *
+ * Existe para el hash del código de verificación (spec 2026-09-22 §6.1), que
+ * reutiliza IP_SALT como clave. Reutilizar una sal para dos cosas solo es
+ * seguro con separación de dominio, y aquí hay dos: el mensaje lleva el
+ * prefijo 'codigo:' y, además, esta es una construcción HMAC mientras que
+ * hashIp es un SHA-256 de concatenación. No pueden colisionar.
+ *
+ * hashIp NO se migra a HMAC: cambiarlo reescribiría el formato de todos los
+ * ip_hash ya guardados y rompería el agrupamiento por origen del panel.
+ */
+export async function hmacHex(key, message) {
+  const enc = new TextEncoder();
+  const clave = await crypto.subtle.importKey(
+    'raw', enc.encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const firma = await crypto.subtle.sign('HMAC', clave, enc.encode(message));
+  return Array.from(new Uint8Array(firma))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
