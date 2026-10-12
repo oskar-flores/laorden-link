@@ -30,9 +30,9 @@ VOTING_CLOSE = "2026-10-17T12:00:00+02:00"
 MINI_COUNT   = "37"
 # Vacío en producción (mismo origen). Solo para desarrollo local.
 CORS_ORIGIN  = ""
-# Se rellenan en la Tarea 6, al crear la aplicación de Access.
-ACCESS_TEAM_DOMAIN = ""
-ACCESS_AUD         = ""
+# Aplicación de Access de www.laorden.org/admin (distinta de las de test).
+ACCESS_TEAM_DOMAIN = "fullmantis.cloudflareaccess.com"
+ACCESS_AUD         = "c54b36ae3726ae8640a542a5eba2762607a94ba30a60df47ec82908547cc5e45"
 
 # ── Voto verificado por correo (spec 2026-09-22 §12) ─────────────────────────
 CODIGO_MINUTOS   = "10"     # vida del código
