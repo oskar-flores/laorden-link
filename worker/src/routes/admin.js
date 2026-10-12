@@ -102,10 +102,11 @@ export function page(totals, tally, risk, email, obras = new Map(),
   body { font-family: system-ui, sans-serif; background:#0D0906; color:#F0E6D6;
          margin:0; padding:32px; line-height:1.6; }
   h1,h2 { font-weight:600; color:#D4924A; }
-  table { border-collapse:collapse; width:100%; max-width:900px; margin-bottom:40px; }
+  h2 { margin-top:48px; margin-bottom:12px; }
+  table { border-collapse:collapse; width:100%; max-width:900px; margin:0 0 16px; }
   th,td { text-align:left; padding:8px 12px; border-bottom:1px solid rgba(196,120,50,0.2); }
   th { color:#8A7560; font-weight:500; }
-  .aviso { color:#8A7560; font-size:0.9em; max-width:60ch; }
+  .aviso { color:#8A7560; font-size:0.9em; max-width:60ch; margin:8px 0 16px; }
   code { background:rgba(255,255,255,0.05); padding:2px 5px; }
   .miniatura { max-width:120px; max-height:120px; width:auto; height:auto;
                display:block; margin-top:4px; border-radius:4px; }
@@ -121,11 +122,12 @@ ${tally.map((r) => `<tr><td>#${esc(r.mini_code)}${miniatura(r)}</td><td>${r.c}</
 </table>
 
 <h2>Orígenes con más de un voto</h2>
-<p class="aviso">Aparecen todos, marcados o no. Una bandera dice qué mirar
-primero, no que haya fraude: dos votos del mismo wifi suelen ser dos personas
-de la misma casa. <strong>ráfaga</strong> es la más discriminante — varios
-votos seguidos en minutos desde un mismo origen es lo que hace una sola
-persona cambiando de navegador.</p>
+<p class="aviso">Aparecen todos, marcados o no: una bandera solo indica qué
+mirar primero, no que haya fraude (dos votos del mismo wifi suelen ser dos
+personas de la misma casa). <strong>ráfaga</strong> es la más fiable: varios
+votos seguidos en minutos delata a una sola persona cambiando de navegador.
+La columna <strong>Correos</strong> es lo que permite decidir: basta leer las
+direcciones para saber si son personas distintas o alias de la misma.</p>
 ${risk.length === 0 ? '<p class="aviso">Ningún origen repite voto.</p>' : `
 <table><tr><th>Hash IP</th><th>Red</th><th>Correos</th><th>Votos</th><th>Obras</th><th>Primero</th><th>Último</th><th>Banderas</th><th>IDs</th></tr>
 ${risk.map((r) => `<tr>
@@ -137,27 +139,17 @@ ${risk.map((r) => `<tr>
   <td><code>${esc(r.ids)}</code></td>
 </tr>`).join('')}
 </table>`}
-
-<p class="aviso">Las direcciones de la columna <strong>Correos</strong> son el registro
-auditable del §10: tres votos de un mismo origen enseñan las tres
-direcciones, y una persona ve al instante si son tres hermanos o tres alias
-de la misma. Ninguna bandera intenta detectar alias por parecido de nombre:
-sería frágil, daría falsos positivos con apellidos comunes, y quien lee tres
-direcciones lo ve solo.</p>
-
+${asistidos.length === 0 ? '' : `
 <h2>Votos asistidos</h2>
-<p class="aviso">Votos que la organización registró a mano con
-<code>scripts/voto-asistido.sh</code> porque el código no llegó (§10 de las
-bases). Cuentan en el recuento de arriba y salen aquí con su motivo.</p>
-${asistidos.length === 0 ? '<p class="aviso">Ninguno.</p>' : `
+<p class="aviso">Votos que la organización registró a mano porque el código
+no llegó (§10 de las bases). Cuentan en el recuento de arriba y salen aquí
+con su motivo.</p>
 <table><tr><th>ID</th><th>Obra</th><th>Correo</th><th>Fecha</th><th>Nota</th></tr>
 ${asistidos.map((r) => `<tr>
   <td>${r.id}</td><td>#${esc(r.mini_code)}</td><td>${esc(r.email)}</td>
   <td>${esc(r.created_at)}</td><td>${esc(r.nota)}</td>
 </tr>`).join('')}
 </table>`}
-
-<p class="aviso">Página de solo lectura.</p>
 </body></html>`;
 }
 
@@ -167,11 +159,20 @@ ${asistidos.map((r) => `<tr>
  * recuento tiene que salir igual, solo que sin miniaturas (ver brief de la
  * Tarea 3). Se resuelve contra `request.url` para que funcione tanto en
  * producción (GitHub Pages) como en `wrangler dev` (--assets).
+ *
+ * En entornos con binding de assets (test, correo), un `fetch()` normal
+ * contra el propio dominio del Worker vuelve 522: Cloudflare corta la
+ * petición porque volvería a entrar por el mismo Worker. `env.ASSETS.fetch`
+ * lee el fichero directamente, sin salir a la red. Producción no tiene ese
+ * binding (sirve los assets desde GitHub Pages, no desde este Worker), así
+ * que ahí se usa el `fetch()` normal de siempre.
  */
-async function cargarObras(request) {
+async function cargarObras(request, env) {
   try {
     const manifiestoUrl = new URL('/concurso/obras.json', request.url);
-    const res = await fetch(manifiestoUrl);
+    const res = env && env.ASSETS
+      ? await env.ASSETS.fetch(manifiestoUrl)
+      : await fetch(manifiestoUrl);
     if (!res.ok) return new Map();
     const lista = await res.json();
     const indice = buildObrasIndex(lista, manifiestoUrl);
@@ -204,7 +205,7 @@ export async function handleAdminResults(request, env) {
     env.DB.prepare(TALLY).all(),
     env.DB.prepare(RISK).all(),
     env.DB.prepare("SELECT COUNT(*) AS n FROM votes WHERE status = 'valid'").first(),
-    cargarObras(request),
+    cargarObras(request, env),
     env.DB.prepare('SELECT COUNT(*) AS n FROM codigos WHERE created_at >= ?').bind(hoy).first(),
     env.DB.prepare(ASISTIDOS).all()
   ]);
