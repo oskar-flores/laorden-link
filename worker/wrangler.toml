@@ -27,7 +27,7 @@ name = "EMAIL"
 [vars]
 VOTING_OPEN  = "2026-10-11T10:00:00+02:00"
 VOTING_CLOSE = "2026-10-17T12:00:00+02:00"
-MINI_COUNT   = "10"
+MINI_COUNT   = "37"
 # Vacío en producción (mismo origen). Solo para desarrollo local.
 CORS_ORIGIN  = ""
 # Se rellenan en la Tarea 6, al crear la aplicación de Access.
@@ -85,7 +85,7 @@ name = "EMAIL"
 # producción la ventana de verdad la impone el bloque [vars] de arriba.
 VOTING_OPEN  = "2026-01-01T00:00:00+01:00"
 VOTING_CLOSE = "2027-01-01T00:00:00+01:00"
-MINI_COUNT   = "10"
+MINI_COUNT   = "37"
 # Mismo origen que la página, igual que en producción: sin CORS.
 CORS_ORIGIN  = ""
 # El AUD es el de la aplicación de Access de TEST, no el de producción: son
@@ -134,7 +134,7 @@ name = "EMAIL"
 # Votación FORZADA ABIERTA, igual que en test: es el motivo de que exista.
 VOTING_OPEN  = "2026-01-01T00:00:00+01:00"
 VOTING_CLOSE = "2027-01-01T00:00:00+01:00"
-MINI_COUNT   = "10"
+MINI_COUNT   = "37"
 CORS_ORIGIN  = ""
 # El AUD es el de la aplicación de Access de test-correo.laorden.org: es una
 # aplicación distinta de la de test y tiene un tag distinto.
