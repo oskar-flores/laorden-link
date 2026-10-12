@@ -256,7 +256,7 @@ describe('POST /api/vote', () => {
     expect((await vote(VALIDO, { now: DESPUES })).status).toBe(403);
   });
 
-  it.each(['00', '11', '23', 'abc', '1', '007', '', null])(
+  it.each(['00', '38', '99', 'abc', '1', '007', '', null])(
     'rechaza el código de obra %p (400)', async (codigo) => {
       await sembrarCodigo();
       const res = await vote({ ...VALIDO, mini_code: codigo });
