@@ -64,6 +64,7 @@ function pedirCodigo(body, opciones = {}, extraEnv = {}) {
 const VALIDO = { correo: 'fulano@gmail.com', turnstile_token: 'tok' };
 const ENVIADO = 'Si la dirección es correcta, te hemos enviado un código.';
 const FALLO = 'No hemos podido enviarte el código. Escribe a laordenaslu@gmail.com y te ayudamos a votar.';
+const YA_VOTO = 'Ya se ha emitido un voto con esta dirección de correo, desde cualquier navegador. Si crees que es un error, escribe a laordenaslu@gmail.com.';
 
 describe('POST /api/code', () => {
   it('manda un código y guarda la fila, sin el código en claro', async () => {
@@ -180,7 +181,7 @@ describe('POST /api/code', () => {
     expect(EMAIL.enviados).toHaveLength(0);
   });
 
-  it('si la dirección YA ha votado contesta lo mismo y no manda nada (§5)', async () => {
+  it('si la dirección YA ha votado lo dice claramente y no manda nada (§5)', async () => {
     await env.DB.prepare(
       `INSERT INTO votes (mini_code, voter_id, ip_hash, created_at, status, email, email_norm)
        VALUES ('07', 'v1', 'h', ?, 'valid', 'Fulano@Gmail.com', 'fulano@gmail.com')`
@@ -188,9 +189,10 @@ describe('POST /api/code', () => {
 
     mockTurnstile(true);
     const { res, EMAIL } = await pedirCodigo(VALIDO);
-    expect(res.status).toBe(200);
-    // Decir "ya has votado" aquí dejaría sondear direcciones ajenas.
-    expect((await res.json()).message).toBe(ENVIADO);
+    expect(res.status).toBe(409);
+    const cuerpo = await res.json();
+    expect(cuerpo.ok).toBe(false);
+    expect(cuerpo.message).toBe(YA_VOTO);
     expect(EMAIL.enviados).toHaveLength(0);
     expect((await env.DB.prepare('SELECT COUNT(*) AS n FROM codigos').first()).n).toBe(0);
   });

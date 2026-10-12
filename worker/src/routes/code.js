@@ -21,7 +21,8 @@ const MSG = {
   turnstile:   'No hemos podido verificar que eres una persona.',
   cerrada:     'La votación no está abierta.',
   falloEnvio:  'No hemos podido enviarte el código. Escribe a laordenaslu@gmail.com y te ayudamos a votar.',
-  serverError: 'No hemos podido registrar tu voto. Inténtalo de nuevo más tarde.'
+  serverError: 'No hemos podido registrar tu voto. Inténtalo de nuevo más tarde.',
+  yaVoto:      'Ya se ha emitido un voto con esta dirección de correo, desde cualquier navegador. Si crees que es un error, escribe a laordenaslu@gmail.com.'
 };
 
 function json(status, ok, message) {
@@ -107,13 +108,17 @@ export async function handleCode(request, env) {
     return json(503, false, MSG.falloEnvio);
   }
 
-  // 6. Si esa dirección ya votó, la respuesta es EXACTAMENTE la misma que si
-  //    no — pero no se manda nada ni se gasta cuota. Decir aquí "ya has
-  //    votado" dejaría sondear direcciones ajenas para saber quién ha votado.
+  // 6. Si esa dirección ya votó, se lo decimos directamente y no se manda ni
+  //    se gasta cuota. Antes la respuesta era idéntica a la de un envío
+  //    normal (para no dejar sondear direcciones ajenas), pero eso dejaba a
+  //    quien repite sesión esperando un código que nunca llega, sin ninguna
+  //    pista de por qué. Se prioriza la claridad de quien ya votó sobre el
+  //    riesgo de sondeo, que sigue frenado por Turnstile y por el límite de
+  //    intentos por hora de este mismo endpoint.
   const yaVoto = await env.DB
     .prepare("SELECT 1 AS found FROM votes WHERE status = 'valid' AND email_norm = ? LIMIT 1")
     .bind(emailNorm).first();
-  if (yaVoto) return json(200, true, MSG.enviado);
+  if (yaVoto) return json(409, false, MSG.yaVoto);
 
   const codigo = generarCodigo();
   const ahora = new Date();

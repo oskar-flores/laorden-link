@@ -734,9 +734,9 @@
                 return res.json().then(function(b) { return { status: res.status, body: b }; },
                                        function() { return { status: res.status, body: {} }; });
             }).then(function(r) {
-                // El 200 es el mismo haya votado esa dirección o no: el
-                // servidor no delata si alguien ya votó, y el cliente tampoco
-                // lo adivina. El duplicado se dice en el paso 2.
+                // Si esa dirección ya votó, el servidor contesta 409 con el
+                // aviso puesto: no hay código que pedir ni paso 2 al que
+                // pasar, así que se queda en este paso mostrando el mensaje.
                 if (r.status === 200) {
                     correoEnviado = correo;
                     avisoEnviadoEl.textContent = r.body.message
