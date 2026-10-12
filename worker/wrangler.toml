@@ -6,10 +6,17 @@ compatibility_date = "2026-09-21"
 # de www.laorden.org. Evita una segunda URL que sirviera los assets estáticos.
 workers_dev = false
 
+# Producción: el sitio lo sirve GitHub Pages; el Worker solo coge estas rutas.
+# Sin ellas `wrangler deploy` va bien y la API da 404 en vivo.
+routes = [
+  { pattern = "www.laorden.org/api/*",   zone_name = "laorden.org" },
+  { pattern = "www.laorden.org/admin/*", zone_name = "laorden.org" }
+]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "laorden-votos"
-database_id = "PENDIENTE"   # se rellena en la Tarea 6
+database_id = "ba86c000-fbaa-43d4-b28b-76e78e9d6f9d"
 migrations_dir = "migrations"
 
 # Cloudflare Email Service. El binding va por entorno igual que la base: las
@@ -62,6 +69,7 @@ routes = [{ pattern = "test.laorden.org", custom_domain = true }]
 # ficheros de una URL pública. desplegar-test.sh lo comprueba después de subir.
 [env.test.assets]
 directory = ".."
+binding = "ASSETS"
 
 [[env.test.d1_databases]]
 binding = "DB"
@@ -111,6 +119,7 @@ routes = [{ pattern = "test-correo.laorden.org", custom_domain = true }]
 
 [env.correo.assets]
 directory = ".."
+binding = "ASSETS"
 
 [[env.correo.d1_databases]]
 binding = "DB"
