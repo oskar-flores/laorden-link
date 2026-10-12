@@ -1,0 +1,18 @@
+# Qué NO sirve `wrangler dev --assets ..` desde la raíz del repo.
+# Formato .gitignore. El despliegue no usa assets en absoluto: el sitio lo
+# publica GitHub Pages y el Worker solo atiende /api/* y /admin/*.
+**/node_modules
+**/.git
+**/.wrangler
+**/.DS_Store
+worker
+.claude
+.agents
+.superpowers
+docs
+skills-lock.json
+
+# Fotos originales del concurso: llevan EXIF (fecha, lugar, a veces autor).
+# Servirlas rompería el anonimato del punto 8 de las bases, que es justo lo
+# que scripts/build-obras.sh elimina con -strip.
+fotos-originales
